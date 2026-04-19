@@ -1,7 +1,7 @@
 {
   "name": "eagle-voice-chat",
   "version": "1.0.0",
-  "description": "Eagle Voice Chat Application",
+  "description": "Eagle Voice Chat",
   "main": "server/src/index.js",
   "scripts": {
     "start": "node server/src/index.js"
