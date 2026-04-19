@@ -11,12 +11,18 @@
         input, button { padding: 10px; margin: 5px; border-radius: 8px; border: none; width: calc(100% - 10px); }
         button { background: #e94560; color: white; cursor: pointer; }
         .room { background: rgba(255,255,255,0.1); padding: 10px; margin: 5px 0; border-radius: 8px; cursor: pointer; }
+        .message { padding: 5px; margin: 5px; border-radius: 8px; }
+        .message-self { background: #e94560; text-align: right; }
+        .message-other { background: rgba(255,255,255,0.1); text-align: left; }
+        .message-system { background: rgba(255,193,7,0.3); text-align: center; font-size: 12px; }
+        .chat-box { height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🦅 Eagle Voice Chat</h1>
         
+        <!-- شاشة تسجيل الدخول -->
         <div id="loginSection" class="card">
             <h3>تسجيل الدخول</h3>
             <input type="text" id="loginUsername" placeholder="اسم المستخدم">
@@ -25,6 +31,7 @@
             <button onclick="showRegister()">إنشاء حساب</button>
         </div>
         
+        <!-- شاشة التسجيل -->
         <div id="registerSection" class="card" style="display:none">
             <h3>إنشاء حساب</h3>
             <input type="text" id="regUsername" placeholder="اسم المستخدم">
@@ -34,20 +41,23 @@
             <button onclick="showLogin()">عودة</button>
         </div>
         
+        <!-- التطبيق الرئيسي -->
         <div id="appSection" style="display:none">
             <div class="card" id="userInfo"></div>
+            
             <div class="card">
-                <h3>الغرف</h3>
+                <h3>🏠 الغرف المتاحة</h3>
                 <div id="roomsList"></div>
                 <input type="text" id="newRoomName" placeholder="اسم الغرفة الجديدة">
                 <button onclick="createRoom()">➕ إنشاء غرفة</button>
             </div>
+            
             <div class="card" id="chatSection" style="display:none">
-                <h3 id="currentRoom"></h3>
-                <div id="messages" style="height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px;"></div>
+                <h3 id="currentRoomTitle">💬 الغرفة</h3>
+                <div class="chat-box" id="messages"></div>
                 <input type="text" id="messageInput" placeholder="اكتب رسالة...">
-                <button onclick="sendMessage()">إرسال</button>
-                <button onclick="leaveRoom()">🚪 مغادرة</button>
+                <button onclick="sendMessage()">📨 إرسال</button>
+                <button onclick="leaveRoom()" style="background:#dc3545">🚪 مغادرة الغرفة</button>
             </div>
         </div>
     </div>
@@ -58,103 +68,209 @@
         let token = localStorage.getItem('token');
         let currentUser = null;
         let currentRoomId = null;
+        let currentRoomName = null;
         
+        // تسجيل الدخول
         async function login() {
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            const data = await res.json();
-            if (data.success) {
-                token = data.token;
-                localStorage.setItem('token', token);
-                currentUser = data.user;
-                connectSocket();
-                document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('appSection').style.display = 'block';
-                document.getElementById('userInfo').innerHTML = `👋 مرحباً ${currentUser.username} | 💰 ${currentUser.coins} | 💎 ${currentUser.diamonds}`;
-                loadRooms();
-            } else alert(data.error);
+            
+            if (!username || !password) {
+                alert('الرجاء إدخال اسم المستخدم وكلمة السر');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    token = data.token;
+                    localStorage.setItem('token', token);
+                    currentUser = data.user;
+                    connectSocket();
+                    
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('appSection').style.display = 'block';
+                    document.getElementById('userInfo').innerHTML = `
+                        👋 مرحباً ${currentUser.username} | 
+                        💰 ${currentUser.coins} عملة | 
+                        💎 ${currentUser.diamonds} ألماس |
+                        👑 VIP ${currentUser.vipLevel}
+                    `;
+                    loadRooms();
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                alert('خطأ في الاتصال بالخادم');
+            }
         }
         
+        // تسجيل حساب جديد
         async function register() {
             const data = {
                 username: document.getElementById('regUsername').value,
                 password: document.getElementById('regPassword').value,
                 email: document.getElementById('regEmail').value
             };
-            const res = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
-            if (result.success) { alert('تم التسجيل بنجاح'); showLogin(); }
-            else alert(result.error);
+            
+            if (!data.username || !data.password) {
+                alert('الرجاء إدخال اسم المستخدم وكلمة السر');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                
+                if (result.success) {
+                    alert('تم التسجيل بنجاح! يمكنك تسجيل الدخول الآن');
+                    showLogin();
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                alert('خطأ في الاتصال بالخادم');
+            }
         }
         
+        // الاتصال بـ Socket.IO
         function connectSocket() {
-            socket = io({ auth: { token } });
-            socket.on('connect', () => console.log('✅ متصل'));
-            socket.on('rooms-updated', () => loadRooms());
-            socket.on('user-joined', (username) => addMessage(`⚡ ${username} دخل الغرفة`, 'system'));
-            socket.on('new-message', (data) => addMessage(`${data.username}: ${data.message}`, 'user'));
+            socket = io({
+                auth: { token },
+                transports: ['websocket', 'polling']
+            });
+            
+            socket.on('connect', () => {
+                console.log('✅ متصل بالخادم');
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.error('Socket error:', error);
+                alert('خطأ في الاتصال بالخادم');
+            });
+            
+            socket.on('rooms-updated', () => {
+                loadRooms();
+            });
+            
+            socket.on('user-joined', (username) => {
+                addMessage(`⚡ ${username} دخل الغرفة`, 'system');
+            });
+            
+            socket.on('new-message', (data) => {
+                if (data.username === currentUser?.username) {
+                    addMessage(`أنت: ${data.message}`, 'self');
+                } else {
+                    addMessage(`${data.username}: ${data.message}`, 'other');
+                }
+            });
         }
         
+        // تحميل قائمة الغرف
         async function loadRooms() {
-            const res = await fetch('/api/rooms');
-            const rooms = await res.json();
-            document.getElementById('roomsList').innerHTML = rooms.map(r => `<div class="room" onclick="joinRoom('${r._id}', '${r.name}')">🏠 ${r.name}</div>`).join('');
+            try {
+                const res = await fetch('/api/rooms');
+                const rooms = await res.json();
+                
+                const roomsList = document.getElementById('roomsList');
+                if (rooms.length === 0) {
+                    roomsList.innerHTML = '<p>لا توجد غرف حالياً. كن أول من ينشئ غرفة!</p>';
+                } else {
+                    roomsList.innerHTML = rooms.map(r => `
+                        <div class="room" onclick="joinRoom('${r._id}', '${r.name}')">
+                            🏠 ${r.name} <small style="color:#aaa">(بواسطة ${r.ownerId})</small>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
         }
         
+        // إنشاء غرفة جديدة
         function createRoom() {
             const name = document.getElementById('newRoomName').value;
-            if (!name) return;
+            if (!name) {
+                alert('الرجاء إدخال اسم الغرفة');
+                return;
+            }
+            
             socket.emit('create-room', { name }, (res) => {
-                if (res.success) { alert('تم إنشاء الغرفة'); loadRooms(); }
-                else alert(res.error);
+                if (res.success) {
+                    alert(`تم إنشاء الغرفة "${name}" بنجاح`);
+                    document.getElementById('newRoomName').value = '';
+                    loadRooms();
+                } else {
+                    alert(res.error);
+                }
             });
         }
         
+        // انضمام إلى غرفة
         function joinRoom(roomId, roomName) {
             currentRoomId = roomId;
+            currentRoomName = roomName;
+            
             socket.emit('join-room', { roomId });
+            
             document.getElementById('chatSection').style.display = 'block';
-            document.getElementById('currentRoom').innerText = `💬 غرفة: ${roomName}`;
+            document.getElementById('currentRoomTitle').innerHTML = `💬 غرفة: ${roomName}`;
             document.getElementById('messages').innerHTML = '';
+            document.getElementById('messageInput').value = '';
+            
+            addMessage(`🎉 انضممت إلى غرفة ${roomName}`, 'system');
         }
         
+        // إرسال رسالة
         function sendMessage() {
             const msg = document.getElementById('messageInput').value;
             if (!msg || !currentRoomId) return;
+            
             socket.emit('send-message', { roomId: currentRoomId, message: msg });
             document.getElementById('messageInput').value = '';
-            addMessage(`أنت: ${msg}`, 'self');
         }
         
+        // مغادرة الغرفة
         function leaveRoom() {
             currentRoomId = null;
+            currentRoomName = null;
             document.getElementById('chatSection').style.display = 'none';
         }
         
+        // إضافة رسالة للشاشة
         function addMessage(text, type) {
             const div = document.createElement('div');
             div.textContent = text;
-            div.style.padding = '5px';
-            div.style.margin = '5px';
-            div.style.borderRadius = '8px';
-            div.style.background = type === 'system' ? 'rgba(255,193,7,0.3)' : (type === 'self' ? '#e94560' : 'rgba(255,255,255,0.1)');
+            div.className = `message message-${type}`;
             document.getElementById('messages').appendChild(div);
             document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
         }
         
-        function showRegister() { document.getElementById('loginSection').style.display = 'none'; document.getElementById('registerSection').style.display = 'block'; }
-        function showLogin() { document.getElementById('registerSection').style.display = 'none'; document.getElementById('loginSection').style.display = 'block'; }
+        // تبديل الشاشات
+        function showRegister() {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('registerSection').style.display = 'block';
+        }
         
-        if (token) { document.getElementById('loginSection').style.display = 'none'; document.getElementById('appSection').style.display = 'block'; login(); }
+        function showLogin() {
+            document.getElementById('registerSection').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'block';
+        }
+        
+        // التحقق من وجود token عند التحميل
+        if (token) {
+            login();
+        }
     </script>
 </body>
-  </html>
+</html>
