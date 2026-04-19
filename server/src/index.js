@@ -12,6 +12,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('client'));
 
+console.log('🚀 Starting Eagle Voice Chat Server...');
+console.log('PORT:', process.env.PORT || 3000);
+console.log('MONGODB_URI:', process.env.MONGODB_URI ? '✅ Defined' : '❌ Missing');
+
 // ============ Models ============
 const UserSchema = new mongoose.Schema({
     username: { type: String, unique: true, required: true },
@@ -63,6 +67,7 @@ app.post('/api/register', async (req, res) => {
             } 
         });
     } catch (error) {
+        console.error('Register error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -95,6 +100,7 @@ app.post('/api/login', async (req, res) => {
             } 
         });
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -122,25 +128,6 @@ app.get('/api/rooms', async (req, res) => {
     }
 });
 
-app.get('/api/admin/users', async (req, res) => {
-    try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) return res.status(401).json({ error: 'No token' });
-        
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const admin = await User.findById(decoded.userId);
-        
-        if (admin.role !== 'super_admin' && admin.role !== 'admin') {
-            return res.status(403).json({ error: 'غير مصرح' });
-        }
-        
-        const users = await User.find().select('-password').limit(50);
-        res.json({ users });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // ============ Socket.IO ============
 const server = http.createServer(app);
 const io = socketIo(server, { 
@@ -148,7 +135,6 @@ const io = socketIo(server, {
     transports: ['websocket', 'polling']
 });
 
-// مصادقة Socket.IO
 io.use(async (socket, next) => {
     try {
         const token = socket.handshake.auth.token;
@@ -166,11 +152,9 @@ io.use(async (socket, next) => {
     }
 });
 
-// أحداث Socket.IO
 io.on('connection', (socket) => {
-    console.log('✅ متصل:', socket.user.username);
+    console.log('✅ Connected:', socket.user.username);
     
-    // إنشاء غرفة
     socket.on('create-room', async (data, callback) => {
         try {
             const room = new Room({ 
@@ -187,7 +171,6 @@ io.on('connection', (socket) => {
         }
     });
     
-    // انضمام إلى غرفة
     socket.on('join-room', async (data, callback) => {
         try {
             socket.join(`room:${data.roomId}`);
@@ -198,7 +181,6 @@ io.on('connection', (socket) => {
         }
     });
     
-    // إرسال رسالة
     socket.on('send-message', (data) => {
         io.to(`room:${data.roomId}`).emit('new-message', {
             username: socket.user.username,
@@ -207,13 +189,12 @@ io.on('connection', (socket) => {
         });
     });
     
-    // مغادرة
     socket.on('disconnect', () => {
-        console.log('❌ disconnected:', socket.user.username);
+        console.log('❌ Disconnected:', socket.user.username);
     });
 });
 
-// ============ إنشاء Super Admin ============
+// ============ Create Super Admin ============
 const createSuperAdmin = async () => {
     try {
         const existing = await User.findOne({ role: 'super_admin' });
@@ -234,19 +215,17 @@ const createSuperAdmin = async () => {
     }
 };
 
-// ============ تشغيل الخادم ============
+// ============ Start Server ============
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// التحقق من وجود رابط قاعدة البيانات
 if (!MONGODB_URI) {
     console.error('❌ MONGODB_URI is not defined in environment variables');
     process.exit(1);
 }
 
-// الاتصال بقاعدة البيانات - الطريقة الصحيحة
 mongoose.connect(MONGODB_URI, {
-    dbName: 'eagle-voice-chat'  // اسم قاعدة البيانات هنا، وليس في الرابط
+    dbName: 'eagle-voice-chat'
 })
 .then(async () => {
     console.log('✅ MongoDB connected successfully');
