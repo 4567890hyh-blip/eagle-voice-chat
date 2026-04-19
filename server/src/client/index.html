@@ -2,62 +2,80 @@
 <html dir="rtl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Eagle Voice Chat</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
-        body { background: linear-gradient(135deg, #0f0c29, #302b63); color: white; min-height: 100vh; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; }
-        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 20px; margin-bottom: 20px; }
-        input, button { padding: 10px; margin: 5px; border-radius: 8px; border: none; width: calc(100% - 10px); }
-        button { background: #e94560; color: white; cursor: pointer; }
-        .room { background: rgba(255,255,255,0.1); padding: 10px; margin: 5px 0; border-radius: 8px; cursor: pointer; }
-        .message { padding: 5px; margin: 5px; border-radius: 8px; }
-        .message-self { background: #e94560; text-align: right; }
-        .message-other { background: rgba(255,255,255,0.1); text-align: left; }
-        .message-system { background: rgba(255,193,7,0.3); text-align: center; font-size: 12px; }
-        .chat-box { height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui; }
+        body { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: white; min-height: 100vh; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 20px; }
+        h1 { text-align: center; margin-bottom: 20px; font-size: 28px; }
+        h1 span { background: linear-gradient(45deg, #e94560, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 10px; background: rgba(255,255,255,0.2); color: white; font-size: 16px; }
+        input::placeholder { color: rgba(255,255,255,0.6); }
+        button { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 10px; background: #e94560; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { transform: scale(1.02); background: #ff6b6b; }
+        .room { background: rgba(255,255,255,0.1); padding: 12px; margin: 8px 0; border-radius: 10px; cursor: pointer; transition: 0.3s; }
+        .room:hover { background: #e94560; transform: translateX(-5px); }
+        .chat-box { height: 350px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 15px; padding: 15px; margin-bottom: 15px; }
+        .message { padding: 8px 12px; margin: 5px 0; border-radius: 10px; max-width: 85%; word-wrap: break-word; }
+        .message-self { background: #e94560; margin-left: auto; text-align: right; }
+        .message-other { background: rgba(255,255,255,0.15); margin-right: auto; }
+        .message-system { background: rgba(255,193,7,0.3); text-align: center; font-size: 12px; margin: 10px 0; }
+        .user-info { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .badge { background: #ffd700; color: #000; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .flex { display: flex; gap: 10px; }
+        .flex button { flex: 1; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🦅 Eagle Voice Chat</h1>
+        <h1>🦅 <span>Eagle Voice Chat</span></h1>
         
-        <!-- شاشة تسجيل الدخول -->
+        <!-- Login Section -->
         <div id="loginSection" class="card">
-            <h3>تسجيل الدخول</h3>
+            <h3 style="margin-bottom: 15px;">🔐 تسجيل الدخول</h3>
             <input type="text" id="loginUsername" placeholder="اسم المستخدم">
             <input type="password" id="loginPassword" placeholder="كلمة السر">
             <button onclick="login()">دخول</button>
-            <button onclick="showRegister()">إنشاء حساب</button>
+            <button onclick="showRegister()" style="background: #6c757d;">إنشاء حساب جديد</button>
         </div>
         
-        <!-- شاشة التسجيل -->
+        <!-- Register Section -->
         <div id="registerSection" class="card" style="display:none">
-            <h3>إنشاء حساب</h3>
+            <h3 style="margin-bottom: 15px;">📝 إنشاء حساب</h3>
             <input type="text" id="regUsername" placeholder="اسم المستخدم">
             <input type="password" id="regPassword" placeholder="كلمة السر">
-            <input type="email" id="regEmail" placeholder="البريد الإلكتروني">
+            <input type="email" id="regEmail" placeholder="البريد الإلكتروني (اختياري)">
             <button onclick="register()">تسجيل</button>
-            <button onclick="showLogin()">عودة</button>
+            <button onclick="showLogin()" style="background: #6c757d;">عودة</button>
         </div>
         
-        <!-- التطبيق الرئيسي -->
+        <!-- App Section -->
         <div id="appSection" style="display:none">
-            <div class="card" id="userInfo"></div>
+            <div class="card">
+                <div class="user-info" id="userInfo"></div>
+            </div>
             
             <div class="card">
-                <h3>🏠 الغرف المتاحة</h3>
-                <div id="roomsList"></div>
+                <h3 style="margin-bottom: 15px;">🏠 الغرف المتاحة</h3>
+                <div id="roomsList" style="max-height: 250px; overflow-y: auto;"></div>
                 <input type="text" id="newRoomName" placeholder="اسم الغرفة الجديدة">
-                <button onclick="createRoom()">➕ إنشاء غرفة</button>
+                <button onclick="createRoom()">➕ إنشاء غرفة جديدة</button>
             </div>
             
             <div class="card" id="chatSection" style="display:none">
-                <h3 id="currentRoomTitle">💬 الغرفة</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 id="currentRoomTitle">💬 الغرفة</h3>
+                    <button onclick="leaveRoom()" style="width: auto; padding: 8px 15px; background: #dc3545;">🚪 مغادرة</button>
+                </div>
                 <div class="chat-box" id="messages"></div>
-                <input type="text" id="messageInput" placeholder="اكتب رسالة...">
-                <button onclick="sendMessage()">📨 إرسال</button>
-                <button onclick="leaveRoom()" style="background:#dc3545">🚪 مغادرة الغرفة</button>
+                <div class="flex">
+                    <input type="text" id="messageInput" placeholder="اكتب رسالة...">
+                    <button onclick="sendMessage()" style="width: auto; padding: 12px 20px;">📨 إرسال</button>
+                </div>
             </div>
         </div>
     </div>
@@ -68,9 +86,7 @@
         let token = localStorage.getItem('token');
         let currentUser = null;
         let currentRoomId = null;
-        let currentRoomName = null;
         
-        // تسجيل الدخول
         async function login() {
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
@@ -96,12 +112,7 @@
                     
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('appSection').style.display = 'block';
-                    document.getElementById('userInfo').innerHTML = `
-                        👋 مرحباً ${currentUser.username} | 
-                        💰 ${currentUser.coins} عملة | 
-                        💎 ${currentUser.diamonds} ألماس |
-                        👑 VIP ${currentUser.vipLevel}
-                    `;
+                    updateUserInfo();
                     loadRooms();
                 } else {
                     alert(data.error);
@@ -111,15 +122,12 @@
             }
         }
         
-        // تسجيل حساب جديد
         async function register() {
-            const data = {
-                username: document.getElementById('regUsername').value,
-                password: document.getElementById('regPassword').value,
-                email: document.getElementById('regEmail').value
-            };
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+            const email = document.getElementById('regEmail').value;
             
-            if (!data.username || !data.password) {
+            if (!username || !password) {
                 alert('الرجاء إدخال اسم المستخدم وكلمة السر');
                 return;
             }
@@ -128,7 +136,7 @@
                 const res = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({ username, password, email })
                 });
                 const result = await res.json();
                 
@@ -143,7 +151,20 @@
             }
         }
         
-        // الاتصال بـ Socket.IO
+        function updateUserInfo() {
+            if (!currentUser) return;
+            let vipBadge = '';
+            if (currentUser.vipLevel > 0) {
+                vipBadge = `<span class="badge">👑 VIP ${currentUser.vipLevel}</span>`;
+            }
+            document.getElementById('userInfo').innerHTML = `
+                <span>👋 مرحباً ${currentUser.username}</span>
+                <span>💰 ${currentUser.coins.toLocaleString()}</span>
+                <span>💎 ${currentUser.diamonds.toLocaleString()}</span>
+                ${vipBadge}
+            `;
+        }
+        
         function connectSocket() {
             socket = io({
                 auth: { token },
@@ -156,7 +177,6 @@
             
             socket.on('connect_error', (error) => {
                 console.error('Socket error:', error);
-                alert('خطأ في الاتصال بالخادم');
             });
             
             socket.on('rooms-updated', () => {
@@ -176,19 +196,18 @@
             });
         }
         
-        // تحميل قائمة الغرف
         async function loadRooms() {
             try {
                 const res = await fetch('/api/rooms');
                 const rooms = await res.json();
-                
                 const roomsList = document.getElementById('roomsList');
+                
                 if (rooms.length === 0) {
-                    roomsList.innerHTML = '<p>لا توجد غرف حالياً. كن أول من ينشئ غرفة!</p>';
+                    roomsList.innerHTML = '<p style="text-align:center; color:#aaa;">✨ لا توجد غرف حالياً. كن أول من ينشئ غرفة!</p>';
                 } else {
                     roomsList.innerHTML = rooms.map(r => `
                         <div class="room" onclick="joinRoom('${r._id}', '${r.name}')">
-                            🏠 ${r.name} <small style="color:#aaa">(بواسطة ${r.ownerId})</small>
+                            🏠 ${escapeHtml(r.name)}
                         </div>
                     `).join('');
                 }
@@ -197,7 +216,6 @@
             }
         }
         
-        // إنشاء غرفة جديدة
         function createRoom() {
             const name = document.getElementById('newRoomName').value;
             if (!name) {
@@ -207,7 +225,7 @@
             
             socket.emit('create-room', { name }, (res) => {
                 if (res.success) {
-                    alert(`تم إنشاء الغرفة "${name}" بنجاح`);
+                    alert(`✅ تم إنشاء الغرفة "${name}" بنجاح`);
                     document.getElementById('newRoomName').value = '';
                     loadRooms();
                 } else {
@@ -216,22 +234,18 @@
             });
         }
         
-        // انضمام إلى غرفة
         function joinRoom(roomId, roomName) {
             currentRoomId = roomId;
-            currentRoomName = roomName;
-            
             socket.emit('join-room', { roomId });
             
             document.getElementById('chatSection').style.display = 'block';
-            document.getElementById('currentRoomTitle').innerHTML = `💬 غرفة: ${roomName}`;
+            document.getElementById('currentRoomTitle').innerHTML = `💬 ${escapeHtml(roomName)}`;
             document.getElementById('messages').innerHTML = '';
             document.getElementById('messageInput').value = '';
             
             addMessage(`🎉 انضممت إلى غرفة ${roomName}`, 'system');
         }
         
-        // إرسال رسالة
         function sendMessage() {
             const msg = document.getElementById('messageInput').value;
             if (!msg || !currentRoomId) return;
@@ -240,23 +254,29 @@
             document.getElementById('messageInput').value = '';
         }
         
-        // مغادرة الغرفة
         function leaveRoom() {
             currentRoomId = null;
-            currentRoomName = null;
             document.getElementById('chatSection').style.display = 'none';
         }
         
-        // إضافة رسالة للشاشة
         function addMessage(text, type) {
             const div = document.createElement('div');
-            div.textContent = text;
             div.className = `message message-${type}`;
+            div.textContent = text;
             document.getElementById('messages').appendChild(div);
             document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
         }
         
-        // تبديل الشاشات
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+        
         function showRegister() {
             document.getElementById('loginSection').style.display = 'none';
             document.getElementById('registerSection').style.display = 'block';
@@ -267,7 +287,6 @@
             document.getElementById('loginSection').style.display = 'block';
         }
         
-        // التحقق من وجود token عند التحميل
         if (token) {
             login();
         }
