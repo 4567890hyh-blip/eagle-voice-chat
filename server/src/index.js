@@ -52,8 +52,7 @@ const TokenManager = {
     },
 
     isTokenValid(token) {
-        const decoded = this.verifyToken(token);
-        return decoded !== null;
+        return this.verifyToken(token) !== null;
     }
 };
 
@@ -63,19 +62,13 @@ const TokenManager = {
 const authenticate = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ error: 'No token provided' });
-        }
+        if (!token) return res.status(401).json({ error: 'No token provided' });
 
         const decoded = TokenManager.verifyToken(token);
-        if (!decoded) {
-            return res.status(401).json({ error: 'Invalid or expired token' });
-        }
+        if (!decoded) return res.status(401).json({ error: 'Invalid or expired token' });
 
         const user = await User.findById(decoded.userId);
-        if (!user || user.isBanned) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
+        if (!user || user.isBanned) return res.status(401).json({ error: 'Unauthorized' });
 
         req.user = user;
         next();
@@ -100,15 +93,9 @@ app.use('/eagle-voice', express.static(path.join(__dirname, '../../eagle-voice')
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
 // روابط الصفحات
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../index.html'));
-});
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../eagle-voice/index.html'));
-});
-app.get('/api/test', (req, res) => {
-    res.json({ status: 'ok', message: 'Server is working!' });
-});
+app.get('/', (req, res) => { res.sendFile(path.join(__dirname, '../../index.html')); });
+app.get('/admin', (req, res) => { res.sendFile(path.join(__dirname, '../../eagle-voice/index.html')); });
+app.get('/api/test', (req, res) => { res.json({ status: 'ok', message: 'Server is working!' }); });
 
 const PORT = process.env.PORT || 3000;
 
@@ -240,9 +227,7 @@ app.post('/api/register', async (req, res) => {
     try {
         const { username, password, email, phone, deviceId } = req.body;
         const existing = await User.findOne({ username });
-        if (existing) {
-            return res.status(400).json({ error: 'اسم المستخدم موجود' });
-        }
+        if (existing) return res.status(400).json({ error: 'اسم المستخدم موجود' });
 
         const hashed = await bcrypt.hash(password, 10);
         const user = new User({ username, email, phone, password: hashed, deviceId });
@@ -274,11 +259,8 @@ app.post('/api/login', async (req, res) => {
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ error: 'بيانات غير صحيحة' });
         }
-        if (user.isBanned) {
-            return res.status(403).json({ error: 'الحساب محظور' });
-        }
+        if (user.isBanned) return res.status(403).json({ error: 'الحساب محظور' });
 
-        // تحديث معلومات الجهاز
         user.devices.push({ deviceId, lastLogin: new Date(), ip: req.ip });
         user.currentDeviceId = deviceId;
         user.lastLoginIp = req.ip;
@@ -371,7 +353,7 @@ app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), a
     res.json({ stats: { totalUsers, onlineUsers: global.onlineUsers?.size || 0, totalCoins, totalDiamonds, totalRevenue } });
 });
 
-// --- إدارة الغرف ---
+// --- إدارة الغرف (للمستخدمين العاديين) ---
 app.get('/api/rooms', async (req, res) => {
     const rooms = await Room.find({ isActive: true }).sort({ createdAt: -1 });
     res.json(rooms);
@@ -385,6 +367,7 @@ app.post('/api/rooms', authenticate, async (req, res) => {
     res.json({ success: true, room });
 });
 
+// --- إدارة الغرف (Admin) ---
 app.get('/api/admin/rooms', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     try {
         const rooms = await Room.find().sort({ createdAt: -1 });
