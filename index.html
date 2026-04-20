@@ -138,69 +138,94 @@
         <div id="users-section" style="display:none">
             <div class="card"><h3>👥 إدارة المستخدمين</h3>
                 <div class="flex"><input type="text" id="searchUser" placeholder="بحث..." style="flex:1"><button class="btn btn-primary" onclick="loadUsers()">🔍 بحث</button><button class="btn btn-info" onclick="loadUsers()">🔄 تحديث</button></div>
-                <div style="overflow-x:auto;"><table class="data-table" id="usersTable"><thead><tr><th>المستخدم</th><th>الدور</th><th>VIP</th><th>العملات</th><th>الألماس</th><th>المخاطر</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="8" class="loading">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
-            <div class=\"card\"><h3>➕ إجراءات سريعة<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"quickUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><button class=\"btn btn-warning\" onclick=\"makeAdmin()\">👑 ترقية Admin<\/button><button class=\"btn btn-success\" onclick=\"addCoins()\">💰 إضافة عملات<\/button><button class=\"btn btn-info\" onclick=\"addDiamonds()\">💎 إضافة ألماس<\/button><button class=\"btn btn-danger\" onclick=\"banUser()\">🔨 حظر<\/button><\/div><\/div>
-        <\/div>
+                <div style="overflow-x:auto;"><table class="data-table" id="usersTable"><thead><tr><th>المستخدم</th><th>الدور</th><th>VIP</th><th>العملات</th><th>الألماس</th><th>المخاطر</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="8" class="loading">جاري التحميل...</td></tr></tbody></table></div>
+            </div>
+            <div class="card"><h3>➕ إجراءات سريعة</h3>
+                <div class="flex"><input type="text" id="quickUsername" placeholder="اسم المستخدم" style="flex:1"><button class="btn btn-warning" onclick="makeAdmin()">👑 ترقية Admin</button><button class="btn btn-success" onclick="addCoins()">💰 إضافة عملات</button><button class="btn btn-info" onclick="addDiamonds()">💎 إضافة ألماس</button><button class="btn btn-danger" onclick="banUser()">🔨 حظر</button></div>
+            </div>
+        </div>
         
-        <div id=\"vip-section\" style=\"display:none\">
-            <div class=\"card\"><h3>👑 نظام VIP<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"vipUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><select id=\"vipLevelSelect\"><option value=\"1\">VIP 1<\/option><option value=\"2\">VIP 2<\/option><option value=\"3\">VIP 3<\/option><option value=\"4\">VIP 4<\/option><option value=\"5\">VIP 5<\/option><\/select><button class=\"btn btn-success\" onclick=\"giveVIP()\">🎁 إعطاء VIP<\/button><button class=\"btn btn-danger\" onclick=\"removeVIP()\">❌ سحب VIP<\/button><button class=\"btn btn-info\" onclick=\"loadVIPRanking()\">🏆 ترتيب VIP<\/button><\/div>
-                <div id=\"vipRanking\"><\/div><\/div><\/div>
+        <div id="vip-section" style="display:none">
+            <div class="card"><h3>👑 نظام VIP</h3>
+                <div class="flex"><input type="text" id="vipUsername" placeholder="اسم المستخدم" style="flex:1"><select id="vipLevelSelect"><option value="1">VIP 1</option><option value="2">VIP 2</option><option value="3">VIP 3</option><option value="4">VIP 4</option><option value="5">VIP 5</option></select><button class="btn btn-success" onclick="giveVIP()">🎁 إعطاء VIP</button><button class="btn btn-danger" onclick="removeVIP()">❌ سحب VIP</button><button class="btn btn-info" onclick="loadVIPRanking()">🏆 ترتيب VIP</button></div>
+                <div id="vipRanking"></div>
+            </div>
+        </div>
         
-        <div id=\"warnings-section\" style=\"display:none\">
-            <div class=\"card\"><h3>⚠️ المخالفات<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"warnUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><input type=\"text\" id=\"warnReason\" placeholder=\"سبب التحذير\" style=\"flex:1\"><button class=\"btn btn-warning\" onclick=\"addWarning()\">⚠️ إضافة تحذير<\/button><button class=\"btn btn-info\" onclick=\"loadWarnings()\">📋 عرض التحذيرات<\/button><\/div>
-                <div id=\"warningsList\"><\/div><\/div><\/div>
+        <div id="warnings-section" style="display:none">
+            <div class="card"><h3>⚠️ المخالفات</h3>
+                <div class="flex"><input type="text" id="warnUsername" placeholder="اسم المستخدم" style="flex:1"><input type="text" id="warnReason" placeholder="سبب التحذير" style="flex:1"><button class="btn btn-warning" onclick="addWarning()">⚠️ إضافة تحذير</button><button class="btn btn-info" onclick="loadWarnings()">📋 عرض التحذيرات</button></div>
+                <div id="warningsList"></div>
+            </div>
+        </div>
         
-        <div id=\"gifts-section\" style=\"display:none\">
-            <div class=\"card\"><h3>🎁 الهدايا<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"giftName\" placeholder=\"الاسم\" style=\"width:120px\"><input type=\"number\" id=\"giftPrice\" placeholder=\"السعر\" style=\"width:80px\"><label><input type=\"checkbox\" id=\"giftIsLucky\"> حظ<\/label><input type=\"number\" id=\"giftWinChance\" placeholder=\"نسبة الفوز\" value=\"10\" style=\"width:80px\"><button class=\"btn btn-success\" onclick=\"addGift()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadGifts()\">🔄 تحديث<\/button><\/div>
-                <div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"giftsTable\"><thead><tr><th>الاسم</th><th>السعر</th><th>النوع</th><th>نسبة الفوز</th><th>حذف</th></tr></thead><tbody><tr><td colspan=\"5\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
-            <div class=\"card\"><h3>🎁 إرسال هدية<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"sendGiftUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><select id=\"sendGiftSelect\" style=\"flex:1\"><\/select><button class=\"btn btn-primary\" onclick=\"sendGiftToUser()\">🎁 إرسال<\/button><\/div><\/div><\/div>
+        <div id="gifts-section" style="display:none">
+            <div class="card"><h3>🎁 الهدايا</h3>
+                <div class="flex"><input type="text" id="giftName" placeholder="الاسم" style="width:120px"><input type="number" id="giftPrice" placeholder="السعر" style="width:80px"><label><input type="checkbox" id="giftIsLucky"> حظ</label><input type="number" id="giftWinChance" placeholder="نسبة الفوز" value="10" style="width:80px"><button class="btn btn-success" onclick="addGift()">➕ إضافة</button><button class="btn btn-info" onclick="loadGifts()">🔄 تحديث</button></div>
+                <div style="overflow-x:auto;"><table class="data-table" id="giftsTable"><thead><tr><th>الاسم</th><th>السعر</th><th>النوع</th><th>نسبة الفوز</th><th>حذف</th></tr></thead><tbody><tr><td colspan="5" class="loading">جاري التحميل...</td></tr></tbody></table></div>
+            </div>
+            <div class="card"><h3>🎁 إرسال هدية</h3>
+                <div class="flex"><input type="text" id="sendGiftUsername" placeholder="اسم المستخدم" style="flex:1"><select id="sendGiftSelect" style="flex:1"></select><button class="btn btn-primary" onclick="sendGiftToUser()">🎁 إرسال</button></div>
+            </div>
+        </div>
         
-        <div id=\"games-section\" style=\"display:none\">
-            <div class=\"card\"><h3>🎮 الألعاب<\/h3>
-                <div id=\"gamesInfo\"><\/div>
-                <button class=\"btn btn-info\" onclick=\"loadGames()\">🔄 تحديث<\/button><\/div><\/div>
+        <div id="games-section" style="display:none">
+            <div class="card"><h3>🎮 الألعاب</h3>
+                <div id="gamesInfo"></div>
+                <button class="btn btn-info" onclick="loadGames()">🔄 تحديث</button>
+            </div>
+        </div>
         
-        <div id=\"withdrawals-section\" style=\"display:none\">
-            <div class=\"card\"><h3>💰 السحوبات<\/h3>
-                <button class=\"btn btn-info\" onclick=\"loadWithdrawals()\">🔄 تحديث<\/button>
-                <div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"withdrawalsTable\"><thead><tr><th>المستخدم</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan=\"5\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div><\/div>
+        <div id="withdrawals-section" style="display:none">
+            <div class="card"><h3>💰 السحوبات</h3>
+                <button class="btn btn-info" onclick="loadWithdrawals()">🔄 تحديث</button>
+                <div style="overflow-x:auto;"><table class="data-table" id="withdrawalsTable"><thead><tr><th>المستخدم</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="5" class="loading">جاري التحميل...</td></tr></tbody></table></div>
+            </div>
+        </div>
         
-        <div id=\"packages-section\" style=\"display:none\">
-            <div class=\"card\"><h3>💰 أسعار الشحن<\/h3>
-                <div id=\"packagesList\"><\/div>
-                <button class=\"btn btn-success\" onclick=\"savePackages()\">💾 حفظ<\/button><\/div><\/div>
+        <div id="packages-section" style="display:none">
+            <div class="card"><h3>💰 أسعار الشحن</h3>
+                <div id="packagesList"></div>
+                <button class="btn btn-success" onclick="savePackages()">💾 حفظ</button>
+            </div>
+        </div>
         
-        <div id=\"agencies-section\" style=\"display:none\">
-            <div class=\"card\"><h3>🏢 الوكالات<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"agencyName\" placeholder=\"اسم الوكالة\" style=\"flex:1\"><button class=\"btn btn-success\" onclick=\"createAgency()\">➕ إنشاء<\/button><button class=\"btn btn-info\" onclick=\"loadAgencies()\">🔄 تحديث<\/button><\/div>
-                <div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"agenciesTable\"><thead><tr><th>الاسم</th><th>المالك</th><th>تاريخ الإنشاء</th></tr></thead><tbody><tr><td colspan=\"3\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div><\/div>
+        <div id="agencies-section" style="display:none">
+            <div class="card"><h3>🏢 الوكالات</h3>
+                <div class="flex"><input type="text" id="agencyName" placeholder="اسم الوكالة" style="flex:1"><button class="btn btn-success" onclick="createAgency()">➕ إنشاء</button><button class="btn btn-info" onclick="loadAgencies()">🔄 تحديث</button></div>
+                <div style="overflow-x:auto;"><table class="data-table" id="agenciesTable"><thead><tr><th>الاسم</th><th>المالك</th><th>تاريخ الإنشاء</th></tr></thead><tbody><tr><td colspan="3" class="loading">جاري التحميل...</td></tr></tbody></table></div>
+            </div>
+        </div>
         
-        <div id=\"splash-section\" style=\"display:none\">
-            <div class=\"card\"><h3>🖼️ شاشة الظهور<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"splashImage\" placeholder=\"رابط الصورة\" style=\"flex:2\"><input type=\"number\" id=\"splashDuration\" placeholder=\"المدة\" style=\"flex:1\"><button class=\"btn btn-success\" onclick=\"addSplash()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadSplash()\">🔄 تحديث<\/button><\/div>
-                <div id=\"splashList\"><\/div><\/div><\/div>
+        <div id="splash-section" style="display:none">
+            <div class="card"><h3>🖼️ شاشة الظهور</h3>
+                <div class="flex"><input type="text" id="splashImage" placeholder="رابط الصورة" style="flex:2"><input type="number" id="splashDuration" placeholder="المدة" style="flex:1"><button class="btn btn-success" onclick="addSplash()">➕ إضافة</button><button class="btn btn-info" onclick="loadSplash()">🔄 تحديث</button></div>
+                <div id="splashList"></div>
+            </div>
+        </div>
         
-        <div id=\"events-section\" style=\"display:none\">
-            <div class=\"card\"><h3>🎉 الفعاليات<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"eventName\" placeholder=\"الاسم\" style=\"flex:2\"><select id=\"eventType\"><option value=\"competition\">مسابقة</option><option value=\"bonus\">بونص</option><\/select><button class=\"btn btn-success\" onclick=\"addEvent()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadEvents()\">🔄 تحديث<\/button><\/div>
-                <div id=\"eventsList\"><\/div><\/div><\/div>
+        <div id="events-section" style="display:none">
+            <div class="card"><h3>🎉 الفعاليات</h3>
+                <div class="flex"><input type="text" id="eventName" placeholder="الاسم" style="flex:2"><select id="eventType"><option value="competition">مسابقة</option><option value="bonus">بونص</option></select><button class="btn btn-success" onclick="addEvent()">➕ إضافة</button><button class="btn btn-info" onclick="loadEvents()">🔄 تحديث</button></div>
+                <div id="eventsList"></div>
+            </div>
+        </div>
         
-        <div id=\"banners-section\" style=\"display:none\">
-            <div class=\"card\"><h3>📢 البانرات<\/h3>
-                <div class=\"flex\"><input type=\"text\" id=\"bannerImage\" placeholder=\"رابط الصورة\" style=\"flex:2\"><input type=\"text\" id=\"bannerLink\" placeholder=\"الرابط\" style=\"flex:2\"><button class=\"btn btn-success\" onclick=\"addBanner()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadBanners()\">🔄 تحديث<\/button><\/div>
-                <div id=\"bannersList\"><\/div><\/div><\/div>
+        <div id="banners-section" style="display:none">
+            <div class="card"><h3>📢 البانرات</h3>
+                <div class="flex"><input type="text" id="bannerImage" placeholder="رابط الصورة" style="flex:2"><input type="text" id="bannerLink" placeholder="الرابط" style="flex:2"><button class="btn btn-success" onclick="addBanner()">➕ إضافة</button><button class="btn btn-info" onclick="loadBanners()">🔄 تحديث</button></div>
+                <div id="bannersList"></div>
+            </div>
+        </div>
         
-        <div id=\"settings-section\" style=\"display:none\">
-            <div class=\"card\"><h3>⚙️ الإعدادات<\/h3>
-                <div class=\"stats-grid\" id=\"advancedStats\"><\/div><\/div><\/div>
-    <\/div>
+        <div id="settings-section" style="display:none">
+            <div class="card"><h3>⚙️ الإعدادات</h3>
+                <div class="stats-grid" id="advancedStats"></div>
+            </div>
+        </div>
+    </div>
     
-    <div id=\"modal\" class=\"modal\"><div class=\"modal-content\"><span class=\"close\" onclick=\"closeModal()\">&times;</span><div id=\"modalBody\"><\/div><\/div><\/div>
+    <div id="modal" class="modal"><div class="modal-content"><span class="close" onclick="closeModal()">&times;</span><div id="modalBody"></div></div></div>
 
     <script>
         const API_URL = '';
@@ -243,7 +268,6 @@
         }
         
         async function fetchAPI(url, options = {}) {
-            // التحقق من صحة التوكن قبل كل طلب
             if (!checkTokenStatus()) {
                 document.getElementById('statsContainer').innerHTML = '<div class="error">⚠️ التوكن منتهي. اضغط على زر "تحديث التوكن" أعلى الصفحة لإعادة تسجيل الدخول.</div>';
                 return null;
@@ -287,7 +311,7 @@
             }
         }
         
-        // ============ باقي الدوال (نفس الكود الأصلي) ============
+        // ============ المستخدمين ============
         async function loadUsers() {
             const search = document.getElementById('searchUser')?.value || '';
             const data = await fetchAPI(`/api/admin/users?search=${search}`);
@@ -302,9 +326,10 @@
                         <td>💎 ${u.diamonds.toLocaleString()}</td>
                         <td style="color:${u.riskScore > 70 ? '#ff4444' : '#ffaa00'}">${u.riskScore}%</td>
                         <td>${u.isBanned ? '🚫 محظور' : '✅ نشط'}</td>
-                        <td><button class="btn btn-sm btn-info" onclick="showUserInfo('${u._id}', '${u.username}')">📋</button>
-                         <button class="btn btn-sm btn-primary" onclick="showUserActions('${u._id}', '${u.username}')">⚙️</button>
-                         <button class="btn btn-sm btn-warning" onclick="showSameDeviceAccounts('${u.deviceId}')">📱</button>
+                        <td>
+                            <button class="btn btn-sm btn-info" onclick="showUserInfo('${u._id}', '${u.username}')">📋</button>
+                            <button class="btn btn-sm btn-primary" onclick="showUserActions('${u._id}', '${u.username}')">⚙️</button>
+                            <button class="btn btn-sm btn-warning" onclick="showSameDeviceAccounts('${u.deviceId}')">📱</button>
                         </td>
                     </tr>`;
                 }
@@ -816,4 +841,4 @@
         setInterval(checkTokenStatus, 30000);
     </script>
 </body>
-                                                                                                                                                                                                                                                                           </html>
+    </html>
