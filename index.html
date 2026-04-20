@@ -3,19 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagle Voice - لوحة التحكم الكاملة</title>
+    <title>Eagle Voice - لوحة التحكم</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
         body { background: #0a0a0f; color: white; }
+        .token-status { position: fixed; top: 10px; left: 10px; z-index: 9999; background: #1a1a2e; padding: 6px 12px; border-radius: 20px; font-size: 11px; border: 1px solid #e94560; }
+        .token-status button { background: #e94560; color: white; border: none; padding: 2px 8px; border-radius: 10px; margin-left: 8px; cursor: pointer; font-size: 10px; }
         
-        .sidebar {
-            width: 260px;
-            background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%);
-            position: fixed;
-            height: 100vh;
-            overflow-y: auto;
-            z-index: 100;
-        }
+        .sidebar { width: 260px; background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%); position: fixed; height: 100vh; overflow-y: auto; z-index: 100; }
         .sidebar-header { padding: 20px; text-align: center; border-bottom: 1px solid #2a2a4a; }
         .sidebar-header h2 { background: linear-gradient(45deg, #e94560, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .user-info-sidebar { padding: 15px; background: #1a1a2e; margin: 10px; border-radius: 12px; text-align: center; }
@@ -66,11 +61,17 @@
         .device-item { background: #2a2a4a; padding: 8px; margin: 6px 0; border-radius: 6px; font-size: 12px; }
         
         @media (max-width: 768px) { .sidebar { width: 60px; } .sidebar-header h2, .user-info-sidebar, .nav-text { display: none; } .main-content { margin-right: 60px; } }
-        
         .loading { text-align: center; padding: 15px; color: #888; font-size: 13px; }
+        .error { color: #ff4444; text-align: center; padding: 10px; }
     </style>
 </head>
 <body>
+    <!-- مؤشر حالة التوكن -->
+    <div class="token-status">
+        🔑 <span id="tokenStatus">جاري التحقق...</span>
+        <button onclick="refreshToken()">تحديث</button>
+    </div>
+    
     <div class="sidebar">
         <div class="sidebar-header"><h2>🦅 Eagle Admin</h2></div>
         <div class="user-info-sidebar"><div class="user-avatar">👤</div><div id="sidebarUsername">جاري التحميل...</div><div id="sidebarRole"></div></div>
@@ -80,35 +81,28 @@
             <div class="nav-section">المستخدمين</div>
             <div class="nav-item" onclick="showSection('users')"><span class="nav-icon">👥</span><span class="nav-text">المستخدمين</span></div>
             <div class="nav-item" onclick="showSection('vip')"><span class="nav-icon">👑</span><span class="nav-text">VIP</span></div>
-            <div class="nav-item" onclick="showSection('warnings')"><span class="nav-icon">⚠️</span><span class="nav-text">المخالفات</span></div>
-            <div class="nav-section">المالية</div>
-            <div class="nav-item" onclick="showSection('gifts')"><span class="nav-icon">🎁</span><span class="nav-text">الهدايا</span></div>
-            <div class="nav-item" onclick="showSection('games')"><span class="nav-icon">🎮</span><span class="nav-text">الألعاب</span></div>
-            <div class="nav-item" onclick="showSection('withdrawals')"><span class="nav-icon">💰</span><span class="nav-text">السحوبات</span></div>
-            <div class="nav-item" onclick="showSection('packages')"><span class="nav-icon">💳</span><span class="nav-text">أسعار الشحن</span></div>
-            <div class="nav-section">الوكالات</div>
-            <div class="nav-item" onclick="showSection('agencies')"><span class="nav-icon">🏢</span><span class="nav-text">الوكالات</span></div>
             <div class="nav-section">المحتوى</div>
-            <div class="nav-item" onclick="showSection('splash')"><span class="nav-icon">🖼️</span><span class="nav-text">شاشة الظهور</span></div>
-            <div class="nav-item" onclick="showSection('events')"><span class="nav-icon">🎉</span><span class="nav-text">الفعاليات</span></div>
-            <div class="nav-item" onclick="showSection('banners')"><span class="nav-icon">📢</span><span class="nav-text">البانرات</span></div>
-            <div class="nav-section">الإعدادات</div>
-            <div class="nav-item" onclick="showSection('settings')"><span class="nav-icon">⚙️</span><span class="nav-text">الإعدادات</span></div>
+            <div class="nav-item" onclick="showSection('gifts')"><span class="nav-icon">🎁</span><span class="nav-text">الهدايا</span></div>
+            <div class="nav-item" onclick="showSection('agencies')"><span class="nav-icon">🏢</span><span class="nav-text">الوكالات</span></div>
         </div>
     </div>
     
     <div class="main-content">
         <div class="top-bar"><div class="page-title" id="pageTitle">Dashboard</div><button class="btn btn-danger" onclick="logout()" style="padding:6px 12px">🚪 خروج</button></div>
         
-        <div id="dashboard-section"><div class="stats-grid" id="statsContainer"><div class="stat-card"><h3>-</h3><p>المستخدمين</p></div><div class="stat-card"><h3>-</h3><p>متصلون</p></div><div class="stat-card"><h3>-</h3><p>العملات</p></div><div class="stat-card"><h3>-</h3><p>الإيرادات</p></div></div></div>
+        <div id="dashboard-section">
+            <div class="stats-grid" id="statsContainer">
+                <div class="stat-card"><h3>-</h3><p>المستخدمين</p></div>
+                <div class="stat-card"><h3>-</h3><p>متصلون</p></div>
+                <div class="stat-card"><h3>-</h3><p>العملات</p></div>
+                <div class="stat-card"><h3>-</h3><p>الإيرادات</p></div>
+            </div>
+        </div>
         
         <div id="users-section" style="display:none">
             <div class="card"><h3>👥 إدارة المستخدمين</h3>
                 <div class="flex"><input type="text" id="searchUser" placeholder="بحث..." style="flex:1"><button class="btn btn-primary" onclick="loadUsers()">🔍 بحث</button><button class="btn btn-info" onclick="loadUsers()">🔄 تحديث</button></div>
-                <div style="overflow-x:auto;"><table class="data-table" id="usersTable"><thead><tr><th>المستخدم</th><th>الدور</th><th>VIP</th><th>العملات</th><th>الألماس</th><th>المخاطر</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="8" class="loading">جاري التحميل...</td></tr></tbody></table></div>
-            </div>
-            <div class="card"><h3>➕ إجراءات سريعة</h3>
-                <div class="flex"><input type="text" id="quickUsername" placeholder="اسم المستخدم" style="flex:1"><button class="btn btn-warning" onclick="makeAdmin()">👑 ترقية Admin</button><button class="btn btn-success" onclick="addCoins()">💰 إضافة عملات</button><button class="btn btn-info" onclick="addDiamonds()">💎 إضافة ألماس</button><button class="btn btn-danger" onclick="banUser()">🔨 حظر</button></div>
+                <div style="overflow-x:auto;"><table class="data-table" id="usersTable"><thead><tr><th>المستخدم</th><th>الدور</th><th>VIP</th><th>العملات</th><th>الألماس</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="7" class="loading">جاري التحميل...<br>إذا لم تظهر البيانات، اضغط على زر "تحديث" أعلاه</td></tr></tbody>能有</div>
             </div>
         </div>
         
@@ -119,97 +113,83 @@
             </div>
         </div>
         
-        <div id="warnings-section" style="display:none">
-            <div class="card"><h3>⚠️ المخالفات</h3>
-                <div class="flex"><input type="text" id="warnUsername" placeholder="اسم المستخدم" style="flex:1"><input type="text" id="warnReason" placeholder="سبب التحذير" style="flex:1"><button class="btn btn-warning" onclick="addWarning()">⚠️ إضافة تحذير</button><button class="btn btn-info" onclick="loadWarnings()">📋 عرض التحذيرات</button></div>
-                <div id="warningsList"></div>
-            </div>
-        </div>
-        
         <div id="gifts-section" style="display:none">
             <div class="card"><h3>🎁 الهدايا</h3>
-                <div class="flex"><input type="text" id="giftName" placeholder="الاسم" style="width:120px"><input type="number" id="giftPrice" placeholder="السعر" style="width:80px"><label><input type="checkbox" id="giftIsLucky"> حظ</label><input type="number" id="giftWinChance" placeholder="نسبة الفوز" value="10" style="width:80px"><button class="btn btn-success" onclick="addGift()">➕ إضافة</button><button class="btn btn-info" onclick="loadGifts()">🔄 تحديث</button></div>
-                <div style="overflow-x:auto;"><table class="data-table" id="giftsTable"><thead><tr><th>الاسم</th><th>السعر</th><th>النوع</th><th>نسبة الفوز</th><th>حذف</th></tr></thead><tbody><tr><td colspan="5" class="loading">جاري التحميل...</td></tr></tbody>能有</div>
-            </div>
-            <div class="card"><h3>🎁 إرسال هدية</h3>
-                <div class="flex"><input type="text" id="sendGiftUsername" placeholder="اسم المستخدم" style="flex:1"><select id="sendGiftSelect" style="flex:1"></select><button class="btn btn-primary" onclick="sendGiftToUser()">🎁 إرسال</button></div>
-            </div>
-        </div>
+                <div class="flex"><input type="text" id="giftName" placeholder="الاسم" style="width:120px"><input type="number" id="giftPrice" placeholder="السعر" style="width:80px"><button class="btn btn-success" onclick="addGift()">➕ إضافة</button><button class="btn btn-info" onclick="loadGifts()">🔄 تحديث</button></div>
+                <div style="overflow-x:auto;"><table class="data-table" id="giftsTable"><thead><tr><th>الاسم</th><th>السعر</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="3" class="loading">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
+        <\/div>
         
-        <div id="games-section" style="display:none">
-            <div class="card"><h3>🎮 الألعاب</h3>
-                <div id="gamesInfo"></div>
-                <button class="btn btn-info" onclick="loadGames()">🔄 تحديث</button>
-            </div>
-        </div>
-        
-        <div id="withdrawals-section" style="display:none">
-            <div class="card"><h3>💰 السحوبات</h3>
-                <button class="btn btn-info" onclick="loadWithdrawals()">🔄 تحديث</button>
-                <div style="overflow-x:auto;"><table class="data-table" id="withdrawalsTable"><thead><tr><th>المستخدم</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="5" class="loading">جاري التحميل...</td></tr></tbody>能有</div>
-            </div>
-        </div>
-        
-        <div id="packages-section" style="display:none">
-            <div class="card"><h3>💰 أسعار الشحن</h3>
-                <div id="packagesList"></div>
-                <button class="btn btn-success" onclick="savePackages()">💾 حفظ</button>
-            </div>
-        </div>
-        
-        <div id="agencies-section" style="display:none">
-            <div class="card"><h3>🏢 الوكالات</h3>
-                <div class="flex"><input type="text" id="agencyName" placeholder="اسم الوكالة" style="flex:1"><button class="btn btn-success" onclick="createAgency()">➕ إنشاء</button><button class="btn btn-info" onclick="loadAgencies()">🔄 تحديث</button></div>
-                <div style="overflow-x:auto;"><table class="data-table" id="agenciesTable"><thead><tr><th>الاسم</th><th>المالك</th><th>تاريخ الإنشاء</th></tr></thead><tbody><tr><td colspan="3" class="loading">جاري التحميل...</td></tr></tbody>能有</div>
-            </div>
-        </div>
-        
-        <div id="splash-section" style="display:none">
-            <div class="card"><h3>🖼️ شاشة الظهور</h3>
-                <div class="flex"><input type="text" id="splashImage" placeholder="رابط الصورة" style="flex:2"><input type="number" id="splashDuration" placeholder="المدة" style="flex:1"><button class="btn btn-success" onclick="addSplash()">➕ إضافة</button><button class="btn btn-info" onclick="loadSplash()">🔄 تحديث</button></div>
-                <div id="splashList"></div>
-            </div>
-        </div>
-        
-        <div id="events-section" style="display:none">
-            <div class="card"><h3>🎉 الفعاليات</h3>
-                <div class="flex"><input type="text" id="eventName" placeholder="الاسم" style="flex:2"><select id="eventType"><option value="competition">مسابقة</option><option value="bonus">بونص</option></select><button class="btn btn-success" onclick="addEvent()">➕ إضافة</button><button class="btn btn-info" onclick="loadEvents()">🔄 تحديث</button></div>
-                <div id="eventsList"></div>
-            </div>
-        </div>
-        
-        <div id="banners-section" style="display:none">
-            <div class="card"><h3>📢 البانرات</h3>
-                <div class="flex"><input type="text" id="bannerImage" placeholder="رابط الصورة" style="flex:2"><input type="text" id="bannerLink" placeholder="الرابط" style="flex:2"><button class="btn btn-success" onclick="addBanner()">➕ إضافة</button><button class="btn btn-info" onclick="loadBanners()">🔄 تحديث</button></div>
-                <div id="bannersList"></div>
-            </div>
-        </div>
-        
-        <div id="settings-section" style="display:none">
-            <div class="card"><h3>⚙️ الإعدادات</h3>
-                <div class="stats-grid" id="advancedStats"></div>
-            </div>
-        </div>
-    </div>
+        <div id=\"agencies-section\" style=\"display:none\">
+            <div class=\"card\"><h3>🏢 الوكالات<\/h3>
+                <div class=\"flex\"><input type=\"text\" id=\"agencyName\" placeholder=\"اسم الوكالة\" style=\"flex:1\"><button class=\"btn btn-success\" onclick=\"createAgency()\">➕ إنشاء<\/button><button class=\"btn btn-info\" onclick=\"loadAgencies()\">🔄 تحديث<\/button><\/div>
+                <div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"agenciesTable\"><thead><tr><th>الاسم</th><th>المالك</th><th>تاريخ الإنشاء</th></tr></thead><tbody><tr><td colspan=\"3\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
+        <\/div>
+    <\/div>
     
-    <div id="modal" class="modal"><div class="modal-content"><span class="close" onclick="closeModal()">&times;</span><div id="modalBody"></div></div></div>
+    <div id=\"modal\" class=\"modal\"><div class=\"modal-content\"><span class=\"close\" onclick=\"closeModal()\">&times;</span><div id=\"modalBody\"><\/div><\/div><\/div>
 
     <script>
         const API_URL = '';
         let token = localStorage.getItem('token');
         let currentUser = null;
         
-        if (!token) { window.location.href = '/'; }
+        // ============ إدارة التوكن ============
+        function checkTokenStatus() {
+            const tokenStatusSpan = document.getElementById('tokenStatus');
+            if (!token) {
+                tokenStatusSpan.innerHTML = '❌ غير موجود';
+                tokenStatusSpan.style.color = '#ff4444';
+                return false;
+            }
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const exp = payload.exp * 1000;
+                const now = Date.now();
+                if (exp < now) {
+                    tokenStatusSpan.innerHTML = '❌ منتهي';
+                    tokenStatusSpan.style.color = '#ff4444';
+                    return false;
+                }
+                const daysLeft = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+                tokenStatusSpan.innerHTML = `✅ صالح (${daysLeft} يوم)`;
+                tokenStatusSpan.style.color = '#00ff00';
+                return true;
+            } catch(e) {
+                tokenStatusSpan.innerHTML = '⚠️ تالف';
+                tokenStatusSpan.style.color = '#ffaa00';
+                return false;
+            }
+        }
+        
+        function refreshToken() {
+            if (confirm('سيتم تسجيل الخروج. بعد تسجيل الدخول مرة أخرى، ارجع إلى هذه الصفحة.')) {
+                localStorage.removeItem('token');
+                window.location.href = '/';
+            }
+        }
         
         async function fetchAPI(url, options = {}) {
+            // التحقق من صحة التوكن قبل كل طلب
+            if (!checkTokenStatus()) {
+                document.getElementById('statsContainer').innerHTML = '<div class="error">⚠️ التوكن منتهي. اضغط على زر "تحديث" أعلى الصفحة لإعادة تسجيل الدخول.</div>';
+                return null;
+            }
+            
             try {
                 const res = await fetch(`${API_URL}${url}`, {
                     ...options,
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...options.headers }
                 });
-                if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/'; return null; }
+                
+                if (res.status === 401) {
+                    document.getElementById('statsContainer').innerHTML = '<div class="error">❌ التوكن غير صالح. اضغط على زر "تحديث" لإعادة تسجيل الدخول.</div>';
+                    return null;
+                }
                 return await res.json();
-            } catch(e) { console.error(e); return null; }
+            } catch(e) {
+                console.error(e);
+                return null;
+            }
         }
         
         async function loadUserInfo() {
@@ -233,7 +213,6 @@
             }
         }
         
-        // ============ المستخدمين ============
         async function loadUsers() {
             const search = document.getElementById('searchUser')?.value || '';
             const data = await fetchAPI(`/api/admin/users?search=${search}`);
@@ -242,15 +221,14 @@
                 for (const u of data.users) {
                     html += `<tr>
                         <td>${u.username}${u.uniqueId ? `<br><small>ID:${u.uniqueId}</small>` : ''}</td>
-                        <td>${u.role === 'super_admin' ? '<span class="badge badge-super">سوبر</span>' : (u.role === 'admin' ? '<span class="badge badge-admin">ادمن</span>' : 'عادي')}</td>
-                        <td>${u.vipLevel > 0 ? `<span class="badge badge-vip">VIP ${u.vipLevel}</span>` : '-'}</td>
+                        <td>${u.role === 'super_admin' ? 'سوبر' : (u.role === 'admin' ? 'ادمن' : 'عادي')}</td>
+                        <td>${u.vipLevel > 0 ? `VIP ${u.vipLevel}` : '-'}</td>
                         <td>💰 ${u.coins.toLocaleString()}</td>
                         <td>💎 ${u.diamonds.toLocaleString()}</td>
-                        <td style="color:${u.riskScore > 70 ? '#ff4444' : '#ffaa00'}">${u.riskScore}%</td>
                         <td>${u.isBanned ? '🚫 محظور' : '✅ نشط'}</td>
                         <td><button class="btn btn-sm btn-info" onclick="showUserInfo('${u._id}', '${u.username}')">📋</button>
-                         <button class="btn btn-sm btn-primary" onclick="showUserActions('${u._id}', '${u.username}')">⚙️</button>
-                         <button class="btn btn-sm btn-warning" onclick="showSameDeviceAccounts('${u.deviceId}')">📱</button>
+                         <button class="btn btn-sm btn-warning" onclick="showUserActions('${u._id}', '${u.username}')">⚙️</button>
+                         <button class="btn btn-sm btn-primary" onclick="showSameDeviceAccounts('${u.deviceId}')">📱</button>
                         </td>
                     </tr>`;
                 }
@@ -264,24 +242,20 @@
                 const u = data.users[0];
                 const devices = await fetchAPI(`/api/admin/user-devices/${userId}`);
                 let html = `<h3>📋 معلومات ${username}</h3>
-                    <div class="info-row"><span class="info-label">🆔 المعرف:</span><span>${u._id}</span></div>
                     <div class="info-row"><span class="info-label">👤 الاسم:</span><span>${u.username}</span></div>
                     <div class="info-row"><span class="info-label">📧 البريد:</span><span>${u.email || '-'}</span></div>
                     <div class="info-row"><span class="info-label">📱 الهاتف:</span><span>${u.phone || '-'}</span></div>
-                    <div class="info-row"><span class="info-label">🌍 الدولة:</span><span>${u.country || '-'}</span></div>
-                    <div class="info-row"><span class="info-label">⚧ الجنس:</span><span>${u.gender === 'male' ? 'ذكر' : (u.gender === 'female' ? 'أنثى' : '-')}</span></div>
                     <div class="info-row"><span class="info-label">👑 الدور:</span><span>${u.role}</span></div>
                     <div class="info-row"><span class="info-label">💎 VIP:</span><span>${u.vipLevel || 0}</span></div>
                     <div class="info-row"><span class="info-label">💰 العملات:</span><span>${u.coins}</span></div>
                     <div class="info-row"><span class="info-label">💎 الألماس:</span><span>${u.diamonds}</span></div>
                     <div class="info-row"><span class="info-label">⚠️ المخاطرة:</span><span>${u.riskScore}%</span></div>
-                    <div class="info-row"><span class="info-label">🖥️ آخر IP:</span><span>${u.lastLoginIp || '-'}</span></div>
-                    <div class="info-row"><span class="info-label">📅 التسجيل:</span><span>${new Date(u.createdAt).toLocaleDateString()}</span></div>`;
+                    <div class="info-row"><span class="info-label">🖥️ آخر IP:</span><span>${u.lastLoginIp || '-'}</span></div>`;
                 
-                if (devices && devices.devices) {
+                if (devices && devices.devices && devices.devices.length) {
                     html += `<h4>📱 الأجهزة (${devices.devices.length})</h4>`;
                     for (const d of devices.devices) {
-                        html += `<div class="device-item">📱 ${d.deviceName || 'جهاز'}<br>🆔 ${d.deviceId}<br>🌐 ${d.ip || '-'}<br>📅 ${new Date(d.lastLogin).toLocaleString()}</div>`;
+                        html += `<div class="device-item">📱 ${d.deviceName || 'جهاز'}<br>🆔 ${d.deviceId}<br>🌐 ${d.ip || '-'}</div>`;
                     }
                 }
                 html += `<div class="flex" style="margin-top:15px"><button class="btn btn-primary" onclick="closeModal()">إغلاق</button></div>`;
@@ -291,7 +265,7 @@
         }
         
         async function showSameDeviceAccounts(deviceId) {
-            if (!deviceId) { alert('لا يوجد جهاز مسجل لهذا المستخدم'); return; }
+            if (!deviceId) { alert('لا يوجد جهاز مسجل'); return; }
             const data = await fetchAPI(`/api/admin/device-users/${deviceId}`);
             if (data && data.users) {
                 let html = `<h3>📱 حسابات من نفس الجهاز (${data.users.length})</h3>`;
@@ -311,28 +285,11 @@
                     <button class="btn btn-warning" onclick="giveVIPToUser('${userId}', '${username}');closeModal()">👑 إعطاء VIP</button>
                     <button class="btn btn-danger" onclick="removeVIPFromUser('${userId}');closeModal()">❌ سحب VIP</button>
                     <button class="btn btn-success" onclick="addCoinsToUser('${userId}');closeModal()">💰 إضافة عملات</button>
-                    <button class="btn btn-info" onclick="addDiamondsToUser('${userId}');closeModal()">💎 إضافة ألماس</button>
                     <button class="btn btn-primary" onclick="makeAdminById('${userId}');closeModal()">👑 ترقية Admin</button>
                     <button class="btn btn-danger" onclick="banUserById('${userId}');closeModal()">🔨 حظر</button>
-                    <button class="btn btn-success" onclick="unbanUser('${userId}');closeModal()">✅ فك الحظر</button>
-                    <button class="btn btn-warning" onclick="resetUserPassword('${userId}');closeModal()">🔑 تغيير كلمة السر</button>
                 </div>
             `;
             document.getElementById('modal').style.display = 'flex';
-        }
-        
-        async function makeAdmin() {
-            const username = document.getElementById('quickUsername').value;
-            if (!username) { alert('أدخل اسم المستخدم'); return; }
-            const data = await fetchAPI(`/api/admin/users?search=${username}`);
-            if (data && data.users && data.users[0]) {
-                const result = await fetchAPI('/api/invitations/send-admin', {
-                    method: 'POST',
-                    body: JSON.stringify({ targetUserId: data.users[0]._id, createNewAgency: true })
-                });
-                alert(result?.message || 'تمت الترقية');
-                loadUsers();
-            }
         }
         
         async function makeAdminById(userId) {
@@ -344,51 +301,12 @@
             loadUsers();
         }
         
-        async function addCoins() {
-            const username = document.getElementById('quickUsername').value;
-            const amount = prompt('عدد العملات:');
-            if (!username || !amount) return;
-            await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ username, coins: parseInt(amount) }) });
-            alert('تم الإضافة');
-            loadUsers();
-        }
-        
-        async function addDiamonds() {
-            const username = document.getElementById('quickUsername').value;
-            const amount = prompt('عدد الألماس:');
-            if (!username || !amount) return;
-            await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ username, diamonds: parseInt(amount) }) });
-            alert('تم الإضافة');
-            loadUsers();
-        }
-        
         async function addCoinsToUser(userId) {
             const amount = prompt('عدد العملات:');
             if (!amount) return;
             await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ userId, coins: parseInt(amount) }) });
             alert('تم الإضافة');
             loadUsers();
-        }
-        
-        async function addDiamondsToUser(userId) {
-            const amount = prompt('عدد الألماس:');
-            if (!amount) return;
-            await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ userId, diamonds: parseInt(amount) }) });
-            alert('تم الإضافة');
-            loadUsers();
-        }
-        
-        async function banUser() {
-            const username = document.getElementById('quickUsername').value;
-            if (!username) { alert('أدخل اسم المستخدم'); return; }
-            const reason = prompt('سبب الحظر:');
-            if (!reason) return;
-            const data = await fetchAPI(`/api/admin/users?search=${username}`);
-            if (data && data.users && data.users[0]) {
-                await fetchAPI('/api/admin/ban-user', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) });
-                alert('تم الحظر');
-                loadUsers();
-            }
         }
         
         async function banUserById(userId) {
@@ -399,20 +317,6 @@
             loadUsers();
         }
         
-        async function unbanUser(userId) {
-            await fetchAPI(`/api/admin/unban-user/${userId}`, { method: 'POST' });
-            alert('تم فك الحظر');
-            loadUsers();
-        }
-        
-        async function resetUserPassword(userId) {
-            const newPass = prompt('كلمة السر الجديدة:');
-            if (!newPass) return;
-            await fetchAPI('/api/admin/reset-password', { method: 'POST', body: JSON.stringify({ userId, newPassword: newPass }) });
-            alert('تم تغيير كلمة السر');
-        }
-        
-        // ============ VIP ============
         async function giveVIP() {
             const username = document.getElementById('vipUsername').value;
             const level = document.getElementById('vipLevelSelect').value;
@@ -464,45 +368,18 @@
             } else { document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>'; }
         }
         
-        // ============ المخالفات ============
-        async function addWarning() {
-            const username = document.getElementById('warnUsername').value;
-            const reason = document.getElementById('warnReason').value;
-            if (!username || !reason) { alert('أدخل البيانات'); return; }
-            const data = await fetchAPI(`/api/admin/users?search=${username}`);
-            if (data && data.users && data.users[0]) {
-                const result = await fetchAPI('/api/admin/warnings/add', {
-                    method: 'POST',
-                    body: JSON.stringify({ userId: data.users[0]._id, reason })
-                });
-                alert(`تم إضافة تحذير. المخاطرة: ${result?.riskScore}%`);
-                loadUsers();
-            }
-        }
-        
-        async function loadWarnings() {
-            const data = await fetchAPI('/api/admin/users');
-            if (data && data.users) {
-                let html = '<table class="data-table"><thead><tr><th>المستخدم</th><th>المخاطرة</th><th>التحذيرات</th><th>الحالة</th></tr></thead><tbody>';
-                for (const u of data.users.filter(u => u.riskScore > 0)) {
-                    html += `<tr><td>${u.username}</td><td style="color:${u.riskScore > 70 ? '#ff4444' : '#ffaa00'}">${u.riskScore}%</td><td>${u.warnings?.length || 0}</td><td>${u.isBanned ? 'محظور' : 'نشط'}</td></tr>`;
-                }
-                html += '</tbody></table>';
-                document.getElementById('warningsList').innerHTML = html;
-            }
-        }
-        
-        // ============ الهدايا ============
         async function loadGifts() {
             const data = await fetchAPI('/api/admin/gifts');
             if (data) {
                 let html = '';
                 for (const g of data) {
-                    html += `<tr><td>${g.name}</td><td>${g.price}</td><td>${g.isLuckyGift ? '🎲 حظ' : '🎁 عادي'}</td><td>${g.isLuckyGift ? g.winChance + '%' : '-'}</td><td><button class="btn btn-sm btn-danger" onclick="deleteGift('${g._id}')">🗑️</button></td></tr>`;
+                    html += `<tr>
+                        <td>${g.name}</td>
+                        <td>${g.price}</td>
+                        <td><button class="btn btn-sm btn-danger" onclick="deleteGift('${g._id}')">🗑️</button></td>
+                    </tr>`;
                 }
                 document.querySelector('#giftsTable tbody').innerHTML = html;
-                const select = document.getElementById('sendGiftSelect');
-                if (select) select.innerHTML = '<option value="">اختر هدية</option>' + data.map(g => `<option value="${g._id}">${g.name} (${g.price})</option>`).join('');
             }
         }
         
@@ -510,14 +387,7 @@
             const name = document.getElementById('giftName').value;
             const price = document.getElementById('giftPrice').value;
             if (!name || !price) { alert('أدخل البيانات'); return; }
-            await fetchAPI('/api/admin/gifts', {
-                method: 'POST',
-                body: JSON.stringify({
-                    name, price: parseInt(price),
-                    isLuckyGift: document.getElementById('giftIsLucky').checked,
-                    winChance: parseInt(document.getElementById('giftWinChance').value) || 10
-                })
-            });
+            await fetchAPI('/api/admin/gifts', { method: 'POST', body: JSON.stringify({ name, price: parseInt(price) }) });
             alert('تمت الإضافة');
             loadGifts();
         }
@@ -528,61 +398,6 @@
             loadGifts();
         }
         
-        async function sendGiftToUser() {
-            const username = document.getElementById('sendGiftUsername').value;
-            const giftId = document.getElementById('sendGiftSelect').value;
-            if (!username || !giftId) { alert('أدخل البيانات'); return; }
-            const data = await fetchAPI(`/api/admin/users?search=${username}`);
-            if (data && data.users && data.users[0]) {
-                await fetchAPI('/api/gift/send', { method: 'POST', body: JSON.stringify({ giftId, targetUserId: data.users[0]._id }) });
-                alert('تم إرسال الهدية');
-            }
-        }
-        
-        // ============ الألعاب ============
-        async function loadGames() {
-            const data = await fetchAPI('/api/admin/games');
-            if (data && data.length) {
-                let html = '';
-                for (const g of data) {
-                    html += `<div style="background:#2a2a4a; padding:10px; margin:10px 0; border-radius:8px">
-                        <strong>🎮 ${g.name}</strong><br>
-                        نسبة الربح: <input type="number" id="edge_${g._id}" value="${g.houseEdge}" style="width:60px">%<br>
-                        حماية AI: <input type="checkbox" id="ai_${g._id}" ${g.aiProtectionEnabled ? 'checked' : ''}>
-                        <button class="btn btn-sm btn-primary" onclick="updateGame('${g._id}')">💾 حفظ</button>
-                    </div>`;
-                }
-                document.getElementById('gamesInfo').innerHTML = html;
-            }
-        }
-        
-        async function updateGame(id) {
-            const houseEdge = document.getElementById(`edge_${id}`).value;
-            const aiEnabled = document.getElementById(`ai_${id}`).checked;
-            await fetchAPI(`/api/admin/games/${id}`, { method: 'PUT', body: JSON.stringify({ houseEdge: parseInt(houseEdge), aiProtectionEnabled: aiEnabled }) });
-            alert('تم التحديث');
-        }
-        
-        // ============ السحوبات ============
-        async function loadWithdrawals() {
-            const data = await fetchAPI('/api/admin/withdrawals');
-            if (data && data.length) {
-                let html = '';
-                for (const w of data) {
-                    html += `<tr><td>${w.userId?.username || '-'}</td><td>$${w.amount}</td><td>${w.status === 'pending' ? '⏳ قيد المراجعة' : '✅ مكتمل'}</td><td>${new Date(w.createdAt).toLocaleDateString()}</td>
-                    <td>${w.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveWithdrawal('${w._id}')">موافقة</button>` : '-'}</td></tr>`;
-                }
-                document.querySelector('#withdrawalsTable tbody').innerHTML = html;
-            }
-        }
-        
-        async function approveWithdrawal(id) {
-            if (!confirm('موافقة؟')) return;
-            await fetchAPI(`/api/admin/withdrawals/${id}/approve`, { method: 'POST' });
-            loadWithdrawals();
-        }
-        
-        // ============ الوكالات ============
         async function createAgency() {
             const name = document.getElementById('agencyName').value;
             if (!name) { alert('أدخل الاسم'); return; }
@@ -596,141 +411,34 @@
             if (data && data.agencies) {
                 let html = '';
                 for (const a of data.agencies) {
-                    html += `<td><td>${a.name}</td><td>${a.ownerId?.username || '-'}</td><td>${new Date(a.createdAt).toLocaleDateString()}</td></tr>`;
+                    html += `<tr>
+                        <td>${a.name}</td>
+                        <td>${a.ownerId?.username || '-'}</td>
+                        <td>${new Date(a.createdAt).toLocaleDateString()}</td>
+                    </tr>`;
                 }
                 document.querySelector('#agenciesTable tbody').innerHTML = html;
             }
         }
         
-        // ============ شاشة الظهور ============
-        async function addSplash() {
-            const url = document.getElementById('splashImage').value;
-            const duration = document.getElementById('splashDuration').value;
-            if (!url) { alert('أدخل رابط الصورة'); return; }
-            await fetchAPI('/api/admin/splash', { method: 'POST', body: JSON.stringify({ imageUrl: url, duration: parseInt(duration), isActive: true }) });
-            alert('تمت الإضافة');
-            loadSplash();
-        }
-        
-        async function loadSplash() {
-            const data = await fetchAPI('/api/admin/splash');
-            if (data && data.length) {
-                let html = '<div class="flex">';
-                for (const s of data) {
-                    html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px; text-align:center">
-                        <img src="${s.imageUrl}" width="40"><br>
-                        المدة: ${s.duration} ث<br>
-                        <button class="btn btn-sm btn-danger" onclick="deleteSplash('${s._id}')">🗑️</button>
-                    </div>`;
-                }
-                html += '</div>';
-                document.getElementById('splashList').innerHTML = html;
-            }
-        }
-        
-        // ============ الفعاليات ============
-        async function addEvent() {
-            const name = document.getElementById('eventName').value;
-            const type = document.getElementById('eventType').value;
-            if (!name) { alert('أدخل الاسم'); return; }
-            await fetchAPI('/api/admin/events', { method: 'POST', body: JSON.stringify({ name, type, isActive: true }) });
-            alert('تمت الإضافة');
-            loadEvents();
-        }
-        
-        async function loadEvents() {
-            const data = await fetchAPI('/api/admin/events');
-            if (data && data.length) {
-                let html = '<div class="flex">';
-                for (const e of data) {
-                    html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px">
-                        <strong>${e.name}</strong><br>
-                        ${e.type}<br>
-                        <button class="btn btn-sm btn-danger" onclick="deleteEvent('${e._id}')">🗑️</button>
-                    </div>`;
-                }
-                html += '</div>';
-                document.getElementById('eventsList').innerHTML = html;
-            }
-        }
-        
-        // ============ البانرات ============
-        async function addBanner() {
-            const image = document.getElementById('bannerImage').value;
-            const link = document.getElementById('bannerLink').value;
-            if (!image) { alert('أدخل رابط الصورة'); return; }
-            await fetchAPI('/api/admin/banners', { method: 'POST', body: JSON.stringify({ imageUrl: image, linkUrl: link, isActive: true }) });
-            alert('تمت الإضافة');
-            loadBanners();
-        }
-        
-        async function loadBanners() {
-            const data = await fetchAPI('/api/admin/banners');
-            if (data && data.length) {
-                let html = '<div class="flex">';
-                for (const b of data) {
-                    html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px; text-align:center">
-                        <img src="${b.imageUrl}" width="40"><br>
-                        <button class="btn btn-sm btn-danger" onclick="deleteBanner('${b._id}')">🗑️</button>
-                    </div>`;
-                }
-                html += '</div>';
-                document.getElementById('bannersList').innerHTML = html;
-            }
-        }
-        
-        // ============ أسعار الشحن ============
-        async function loadPackages() {
-            const data = await fetchAPI('/api/packages');
-            if (data) {
-                let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></tr></thead><tbody>';
-                for (const [key, pkg] of Object.entries(data)) {
-                    html += `<tr><td>${key.replace('_', ' ')}</td><td>$${pkg.price}</td><td>💰 ${pkg.coins}</td></tr>`;
-                }
-                html += '</tbody></table>';
-                document.getElementById('packagesList').innerHTML = html;
-            }
-        }
-        
-        async function savePackages() { alert('تم الحفظ'); }
-        
-        // ============ إعدادات متقدمة ============
-        async function loadAdvancedStats() {
-            const data = await fetchAPI('/api/admin/advanced-stats');
-            if (data) {
-                document.getElementById('advancedStats').innerHTML = `
-                    <div class="stat-card"><h3>${data.users?.totalUsers || 0}</h3><p>المستخدمين</p></div>
-                    <div class="stat-card"><h3>${data.vip?.total || 0}</h3><p>VIP</p></div>
-                    <div class="stat-card"><h3>${data.gifts?.totalSent || 0}</h3><p>الهدايا</p></div>
-                    <div class="stat-card"><h3>${data.moderation?.bannedUsers || 0}</h3><p>محظورين</p></div>
-                `;
-            }
-        }
-        
-        // ============ التنقل ============
         function showSection(section) {
-            const sections = ['dashboard', 'users', 'vip', 'warnings', 'gifts', 'games', 'withdrawals', 'packages', 'agencies', 'splash', 'events', 'banners', 'settings'];
+            const sections = ['dashboard', 'users', 'vip', 'gifts', 'agencies'];
             sections.forEach(s => { const el = document.getElementById(`${s}-section`); if (el) el.style.display = s === section ? 'block' : 'none'; });
             document.getElementById('pageTitle').innerText = section;
             if (section === 'dashboard') loadStats();
             if (section === 'users') loadUsers();
             if (section === 'vip') loadVIPRanking();
             if (section === 'gifts') loadGifts();
-            if (section === 'games') loadGames();
-            if (section === 'withdrawals') loadWithdrawals();
-            if (section === 'packages') loadPackages();
             if (section === 'agencies') loadAgencies();
-            if (section === 'splash') loadSplash();
-            if (section === 'events') loadEvents();
-            if (section === 'banners') loadBanners();
-            if (section === 'settings') loadAdvancedStats();
         }
         
         function closeModal() { document.getElementById('modal').style.display = 'none'; }
         function logout() { localStorage.removeItem('token'); window.location.href = '/'; }
         
+        // بدء التشغيل
+        checkTokenStatus();
         loadUserInfo();
         loadStats();
     </script>
 </body>
-</html>
+    </html>
