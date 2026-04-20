@@ -5,15 +5,18 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
-// ✅ إصلاح تحذير Mongoose
-mongoose.set('strictQuery', false);
-
+// ============ إعدادات Express ============
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// ============ CORS Headers إضافية ============
+// إصلاح تحذير Mongoose
+mongoose.set('strictQuery', false);
+
+// ============ CORS Headers ============
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
@@ -26,7 +29,7 @@ app.use((req, res, next) => {
 const authenticate = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];
-        if (!token) return res.status(401).json({ error: 'No token' });
+        if (!token) return res.status(401).json({ error: 'No token provided' });
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user = await User.findById(decoded.userId);
         if (!user || user.isBanned) return res.status(401).json({ error: 'Unauthorized' });
@@ -47,17 +50,20 @@ const authorize = (roles = []) => {
     };
 };
 
-// خدمة الملفات الثابتة
+// ============ خدمة الملفات الثابتة ============
 app.use(express.static(path.join(__dirname, '../../')));
 app.use('/eagle-voice', express.static(path.join(__dirname, '../../eagle-voice')));
+app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
-// روابط الصفحات
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../eagle-voice/index.html'));
-});
+// ============ روابط الصفحات ============
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../../index.html'));
 });
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../eagle-voice/index.html'));
+});
+
 app.get('/api/test', (req, res) => {
     res.json({ status: 'ok', message: 'Server is working!' });
 });
@@ -68,48 +74,186 @@ const PORT = process.env.PORT || 3000;
 
 // نموذج المستخدم
 const UserSchema = new mongoose.Schema({
-    username: { type: String, unique: true, required: true },
+    username: { type: String, unique: true, required: true, trim: true },
     email: { type: String, unique: true, sparse: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['user', 'admin', 'super_admin'], default: 'user' },
-    coins: { type: Number, default: 0 },
-    diamonds: { type: Number, default: 0 },
-    vipLevel: { type: Number, default: 0 },
+    phone: { type: String, unique: true, sparse: true },
+    avatar: { type: String, default: '/uploads/default-avatar.png' },
+    fullName: String,
+    country: { type: String, default: 'EG' },
+    flag: { type: String, default: '🇪🇬' },
+    gender: { type: String, enum: ['male', 'female', 'other'], default: 'other' },
+    age: Number,
+    bio: String,
+    uniqueId: { type: String, unique: true, sparse: true },
+    uniqueIdPurchasedAt: Date,
+    
+    // نظام VIP
+    vipLevel: { type: Number, default: 0, min: 0, max: 5 },
     vipExpiry: Date,
     vipBenefits: {
-        canEnterVipRooms: Boolean,
-        cannotBeMuted: Boolean,
-        cannotBeKicked: Boolean,
-        animatedAvatar: Boolean,
-        doubleXp: Boolean
+        canEnterVipRooms: { type: Boolean, default: false },
+        cannotBeMuted: { type: Boolean, default: false },
+        cannotBeKicked: { type: Boolean, default: false },
+        animatedAvatar: { type: Boolean, default: false },
+        doubleXp: { type: Boolean, default: false }
     },
-    xp: { type: Number, default: 0 },
+    
+    // العملات
+    coins: { type: Number, default: 0 },
+    diamonds: { type: Number, default: 0 },
+    totalSpent: { type: Number, default: 0 },
+    totalWithdrawn: { type: Number, default: 0 },
+    
+    // نظام المستويات
     level: { type: Number, default: 1 },
+    xp: { type: Number, default: 0 },
     totalGiftsSent: { type: Number, default: 0 },
     totalGiftsReceived: { type: Number, default: 0 },
+    
+    // الصلاحيات
+    role: { type: String, enum: ['user', 'admin', 'super_admin'], default: 'user' },
+    
+    // الوكالة
+    agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency' },
+    agencyRole: { type: String, enum: ['owner', 'admin', 'member'], default: 'member' },
+    agencyEarnings: { type: Number, default: 0 },
+    joinedAgencyAt: Date,
+    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    
+    // الـ Admins المدعوين
+    invitedAdmins: [{
+        adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency' },
+        joinedAt: Date,
+        earnings: Number
+    }],
+    invitedAdminsStats: { count: { type: Number, default: 0 }, totalEarnings: { type: Number, default: 0 } },
+    
+    // الأمان
     isBanned: { type: Boolean, default: false },
     banReason: String,
     bannedUntil: Date,
-    mutedUntil: Date,
     warnings: [{ reason: String, date: Date, moderator: String, action: String }],
     riskScore: { type: Number, default: 0 },
-    agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency' },
-    transactions: [{ type: String, amount: Number, coins: Number, diamonds: Number, description: String, date: Date, status: String }],
-    createdAt: { type: Date, default: Date.now }
+    
+    // معلومات الجهاز
+    deviceId: { type: String },
+    devices: [{
+        deviceId: String,
+        deviceName: String,
+        deviceModel: String,
+        os: String,
+        browser: String,
+        lastLogin: Date,
+        ip: String,
+        location: String
+    }],
+    currentDeviceId: String,
+    lastLoginIp: String,
+    lastLoginDate: Date,
+    
+    // الجلسات
+    sessions: [{ token: String, deviceId: String, createdAt: Date, expiresAt: Date, ip: String }],
+    
+    // OTP
+    otp: String,
+    otpExpiry: Date,
+    
+    // المعاملات
+    transactions: [{
+        type: String,
+        amount: Number,
+        coins: Number,
+        diamonds: Number,
+        description: String,
+        date: Date,
+        status: String
+    }],
+    
+    withdrawals: [{
+        amount: Number,
+        netAmount: Number,
+        fee: Number,
+        method: String,
+        accountInfo: Object,
+        status: String,
+        requestedAt: Date,
+        processedAt: Date
+    }],
+    
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
 });
 
 // نموذج الغرفة
 const RoomSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    ownerId: { type: String, required: true },
-    users: [{ userId: String, joinedAt: Date }],
+    description: String,
+    category: { type: String, enum: ['general', 'music', 'gaming', 'vip'], default: 'general' },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    moderators: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    password: String,
+    isPrivate: Boolean,
+    isVipOnly: Boolean,
+    requiredLevel: { type: Number, default: 1 },
+    maxMicrophones: { type: Number, default: 20 },
+    isMicsLocked: { type: Boolean, default: false },
+    users: [{ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, joinedAt: Date }],
+    currentSpeakers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    mutedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    kickedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    chatHistory: [{
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        username: String,
+        message: String,
+        type: String,
+        fileUrl: String,
+        createdAt: Date
+    }],
+    soundEffects: { enterSound: String, exitSound: String, giftSound: String },
+    totalMessages: { type: Number, default: 0 },
+    totalGifts: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now }
 });
 
 // نموذج الوكالة
 const AgencySchema = new mongoose.Schema({
     name: { type: String, required: true, unique: true },
-    ownerId: { type: String, required: true },
+    description: String,
+    logo: String,
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    hosts: [{
+        hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        joinedAt: Date,
+        invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        earnings: Number,
+        diamondsEarned: Number
+    }],
+    admins: [{
+        adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        joinedAt: Date,
+        earnings: Number
+    }],
+    sponsors: [{
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        amount: Number,
+        startDate: Date,
+        endDate: Date
+    }],
+    financialStats: {
+        totalEarnings: { type: Number, default: 0 },
+        monthlyEarnings: { type: Number, default: 0 },
+        weeklyEarnings: { type: Number, default: 0 },
+        todayEarnings: { type: Number, default: 0 },
+        totalWithdrawn: { type: Number, default: 0 }
+    },
+    hostsStats: { count: { type: Number, default: 0 }, totalEarnings: { type: Number, default: 0 } },
+    settings: { commissionRate: { type: Number, default: 10 }, minWithdrawal: { type: Number, default: 50 } },
+    isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -120,6 +264,7 @@ const GiftSchema = new mongoose.Schema({
     price: { type: Number, required: true },
     image: String,
     animation: String,
+    sound: String,
     isLuckyGift: { type: Boolean, default: false },
     winChance: { type: Number, default: 10 },
     winMultiplier: { type: Number, default: 2 },
@@ -146,6 +291,545 @@ const GameSchema = new mongoose.Schema({
 const WithdrawalSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     amount: Number,
+    method: { type: String, enum: ['vodafone', 'paypal', 'bank'] },
+    accountInfo: Object,
+    status: { type: String, enum: ['pending', 'completed', 'rejected'], default: 'pending' },
+    createdAt: { type: Date, default: Date.now }
+});
+
+// نموذج الفعالية
+const EventSchema = new mongoose.Schema({
+    name: String,
+    description: String,
+    type: { type: String, enum: ['competition', 'bonus', 'gift'] },
+    startDate: Date,
+    endDate: Date,
+    rewards: Object,
+    isActive: Boolean,
+    createdAt: { type: Date, default: Date.now }
+});
+
+// نموذج شاشة الظهور
+const SplashScreenSchema = new mongoose.Schema({
+    imageUrl: String,
+    videoUrl: String,
+    duration: Number,
+    isActive: Boolean,
+    startDate: Date,
+    endDate: Date,
+    createdAt: { type: Date, default: Date.now }
+});
+
+// نموذج البانر
+const BannerSchema = new mongoose.Schema({
+    title: String,
+    imageUrl: String,
+    linkUrl: String,
+    position: { type: String, enum: ['home', 'sidebar', 'popup'], default: 'home' },
+    viewCount: { type: Number, default: 0 },
+    clickCount: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now }
+});
+
+// نموذج الإشعار
+const NotificationSchema = new mongoose.Schema({
+    title: String,
+    body: String,
+    type: { type: String, enum: ['general', 'vip', 'gift', 'event'], default: 'general' },
+    targetUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    isSent: { type: Boolean, default: false },
+    sentAt: Date,
+    createdAt: { type: Date, default: Date.now }
+});
+
+// نموذج إعدادات النظام
+const SystemSettingsSchema = new mongoose.Schema({
+    appName: { type: String, default: 'Eagle Voice Chat' },
+    maintenanceMode: { type: Boolean, default: false },
+    packages: { type: Map, of: Object, default: {} },
+    giftSettings: { adminCommission: { type: Number, default: 30 }, luckyGiftEnabled: { type: Boolean, default: true } },
+    gameSettings: { houseEdge: { type: Number, default: 5 }, maxConsecutiveLosses: { type: Number, default: 3 }, aiProtectionEnabled: { type: Boolean, default: true } },
+    withdrawalSettings: { minAmount: { type: Number, default: 10 }, processingFee: { type: Number, default: 5 }, enabledMethods: [String] },
+    bannedWords: [{ word: String, action: String, severity: Number }],
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    updatedAt: { type: Date, default: Date.now }
+});
+
+// إنشاء النماذج
+const User = mongoose.model('User', UserSchema);
+const Room = mongoose.model('Room', RoomSchema);
+const Agency = mongoose.model('Agency', AgencySchema);
+const Gift = mongoose.model('Gift', GiftSchema);
+const Game = mongoose.model('Game', GameSchema);
+const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
+const Event = mongoose.model('Event', EventSchema);
+const SplashScreen = mongoose.model('SplashScreen', SplashScreenSchema);
+const Banner = mongoose.model('Banner', BannerSchema);
+const Notification = mongoose.model('Notification', NotificationSchema);
+const SystemSettings = mongoose.model('SystemSettings', SystemSettingsSchema);
+
+// ============ دوال مساعدة ============
+UserSchema.methods.calculateLevel = function() {
+    return Math.floor(Math.sqrt(this.xp / 100)) + 1;
+};
+
+UserSchema.methods.addXP = async function(amount) {
+    this.xp += amount;
+    const newLevel = this.calculateLevel();
+    let leveledUp = false;
+    if (newLevel > this.level) {
+        this.level = newLevel;
+        leveledUp = true;
+        const rewards = { 5: 100, 10: 500, 20: 2000, 50: 10000, 100: 50000 };
+        if (rewards[this.level]) this.coins += rewards[this.level];
+    }
+    await this.save();
+    return { leveledUp, newLevel };
+};
+
+UserSchema.methods.addDiamonds = async function(amount, source = 'gift') {
+    this.diamonds += amount;
+    await this.save();
+    return this.diamonds;
+};
+
+RoomSchema.methods.isModerator = function(userId) {
+    return this.ownerId.toString() === userId.toString() || this.moderators.some(m => m.toString() === userId.toString());
+};
+
+// ============ API Routes ============
+
+// ===== المصادقة =====
+app.post('/api/register', async (req, res) => {
+    try {
+        const { username, password, email, phone, deviceId } = req.body;
+        const existingUser = await User.findOne({ $or: [{ username }, { email }, { phone }] });
+        if (existingUser) return res.status(400).json({ error: 'اسم المستخدم موجود' });
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = new User({ username, email, phone, password: hashedPassword, deviceId, devices: [{ deviceId, lastLogin: new Date(), ip: req.ip }] });
+        await user.save();
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+        res.json({ success: true, token, user: { id: user._id, username: user.username, role: user.role, coins: user.coins, diamonds: user.diamonds } });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/login', async (req, res) => {
+    try {
+        const { username, password, deviceId, deviceInfo } = req.body;
+        const user = await User.findOne({ $or: [{ username }, { email: username }, { phone: username }] });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ error: 'بيانات غير صحيحة' });
+        }
+        if (user.isBanned) return res.status(403).json({ error: `الحساب محظور: ${user.banReason}` });
+        
+        const existingDevice = user.devices.find(d => d.deviceId === deviceId);
+        if (existingDevice) { existingDevice.lastLogin = new Date(); existingDevice.ip = req.ip; }
+        else { user.devices.push({ deviceId, deviceName: deviceInfo?.deviceName, lastLogin: new Date(), ip: req.ip }); }
+        
+        user.currentDeviceId = deviceId;
+        user.lastLoginIp = req.ip;
+        user.lastLoginDate = new Date();
+        
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+        user.sessions.push({ token, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), ip: req.ip });
+        await user.save();
+        
+        res.json({ success: true, token, user: { id: user._id, username: user.username, role: user.role, coins: user.coins, diamonds: user.diamonds, vipLevel: user.vipLevel } });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/user', authenticate, async (req, res) => {
+    res.json({ user: req.user });
+});
+
+// ===== المستخدمين (Admin) =====
+app.get('/api/admin/users', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { search, role } = req.query;
+    let query = {};
+    if (search) query.username = { $regex: search, $options: 'i' };
+    if (role) query.role = role;
+    const users = await User.find(query).select('-password -sessions').limit(100);
+    res.json({ users });
+});
+
+app.post('/api/admin/ban-user', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, reason } = req.body;
+    const user = await User.findByIdAndUpdate(userId, { isBanned: true, banReason: reason }, { new: true });
+    res.json({ success: true, message: `تم حظر ${user.username}` });
+});
+
+app.post('/api/admin/unban-user/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const user = await User.findByIdAndUpdate(req.params.userId, { isBanned: false, banReason: null }, { new: true });
+    res.json({ success: true, message: `تم فك الحظر عن ${user.username}` });
+});
+
+app.post('/api/admin/add-coins', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, username, coins } = req.body;
+    let user = null;
+    if (userId) user = await User.findById(userId);
+    else if (username) user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    user.coins += coins;
+    await user.save();
+    res.json({ success: true, message: `تم إضافة ${coins} عملة` });
+});
+
+app.post('/api/admin/add-diamonds', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, username, diamonds } = req.body;
+    let user = null;
+    if (userId) user = await User.findById(userId);
+    else if (username) user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    user.diamonds += diamonds;
+    await user.save();
+    res.json({ success: true, message: `تم إضافة ${diamonds} ألماس` });
+});
+
+app.post('/api/admin/reset-password', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, newPassword } = req.body;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    res.json({ success: true, message: 'تم تغيير كلمة السر' });
+});
+
+app.get('/api/admin/user-devices/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const user = await User.findById(req.params.userId).select('devices currentDeviceId lastLoginIp');
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    res.json({ devices: user.devices, currentDeviceId: user.currentDeviceId, lastLoginIp: user.lastLoginIp });
+});
+
+app.get('/api/admin/device-users/:deviceId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const users = await User.find({ deviceId: req.params.deviceId }).select('username role coins diamonds isBanned lastLoginDate');
+    res.json({ users });
+});
+
+app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const totalUsers = await User.countDocuments();
+    const totalCoins = await User.aggregate([{ $group: { _id: null, total: { $sum: "$coins" } } }]);
+    const totalRevenue = await User.aggregate([{ $unwind: "$transactions" }, { $match: { "transactions.type": "purchase" } }, { $group: { _id: null, total: { $sum: "$transactions.amount" } } }]);
+    res.json({ stats: { totalUsers, onlineUsers: global.onlineUsers?.size || 0, totalCoins: totalCoins[0]?.total || 0, totalRevenue: totalRevenue[0]?.total || 0 } });
+});
+
+// ===== الغرف =====
+app.get('/api/rooms', async (req, res) => {
+    const rooms = await Room.find().sort({ createdAt: -1 });
+    res.json(rooms);
+});
+
+app.post('/api/rooms', authenticate, async (req, res) => {
+    const existingRoom = await Room.findOne({ ownerId: req.user._id });
+    if (existingRoom) return res.status(400).json({ error: 'لديك غرفة بالفعل' });
+    const room = new Room({ name: req.body.name, ownerId: req.user._id });
+    await room.save();
+    res.json({ success: true, room });
+});
+
+// ===== الوكالات =====
+app.get('/api/agencies', authenticate, async (req, res) => {
+    const agencies = await Agency.find().populate('ownerId', 'username');
+    res.json({ agencies });
+});
+
+app.post('/api/agency/create', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { name } = req.body;
+    const existingAgency = await Agency.findOne({ name });
+    if (existingAgency) return res.status(400).json({ error: 'الاسم موجود' });
+    const agency = new Agency({ name, ownerId: req.user._id });
+    await agency.save();
+    res.json({ success: true, agency });
+});
+
+// ===== VIP =====
+app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, username, level, days } = req.body;
+    let user = null;
+    if (userId) user = await User.findById(userId);
+    else if (username) user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    user.vipLevel = level;
+    user.vipExpiry = new Date(Date.now() + (days || 30) * 24 * 60 * 60 * 1000);
+    user.vipBenefits = { canEnterVipRooms: true, cannotBeMuted: level >= 2, cannotBeKicked: level >= 3, animatedAvatar: level >= 4, doubleXp: level >= 4 };
+    await user.save();
+    res.json({ success: true, message: `تم ترقية ${user.username} إلى VIP ${level}` });
+});
+
+app.post('/api/admin/remove-vip/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    user.vipLevel = 0;
+    user.vipExpiry = null;
+    user.vipBenefits = {};
+    await user.save();
+    res.json({ success: true, message: `تم سحب VIP من ${user.username}` });
+});
+
+app.get('/api/vip/ranking', async (req, res) => {
+    const vipUsers = await User.find({ vipLevel: { $gt: 0 } }).sort({ vipLevel: -1, coins: -1 }).limit(100).select('username vipLevel coins');
+    res.json(vipUsers);
+});
+
+// ===== الهدايا =====
+app.get('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Gift.find());
+});
+
+app.post('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const gift = new Gift(req.body);
+    await gift.save();
+    res.json({ success: true, gift });
+});
+
+app.delete('/api/admin/gifts/:giftId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Gift.findByIdAndDelete(req.params.giftId);
+    res.json({ success: true });
+});
+
+app.post('/api/gift/send', authenticate, async (req, res) => {
+    const { giftId, targetUserId } = req.body;
+    const gift = await Gift.findById(giftId);
+    if (!gift) return res.status(404).json({ error: 'الهدية غير موجودة' });
+    if (req.user.coins < gift.price) return res.status(400).json({ error: 'رصيد غير كاف' });
+    req.user.coins -= gift.price;
+    let giftValue = gift.price;
+    let isLuckyWin = false;
+    if (gift.isLuckyGift) {
+        const random = Math.random() * 100;
+        if (random <= gift.winChance) { giftValue = gift.price * gift.winMultiplier; isLuckyWin = true; }
+    }
+    const targetUser = await User.findById(targetUserId);
+    if (targetUser) {
+        targetUser.diamonds += giftValue;
+        targetUser.totalGiftsReceived += 1;
+        await targetUser.save();
+    }
+    req.user.totalGiftsSent += 1;
+    await req.user.save();
+    res.json({ success: true, isLuckyWin, value: giftValue, newBalance: req.user.coins });
+});
+
+// ===== الألعاب =====
+app.get('/api/admin/games', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Game.find());
+});
+
+app.put('/api/admin/games/:gameId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json({ success: true, game: await Game.findByIdAndUpdate(req.params.gameId, req.body, { new: true }) });
+});
+
+// ===== المخالفات =====
+app.post('/api/admin/warnings/add', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, reason } = req.body;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    user.warnings.push({ reason, date: new Date(), moderator: req.user.username, action: 'warn' });
+    user.riskScore += 10;
+    if (user.riskScore >= 100) { user.isBanned = true; user.banReason = 'تجاوز حد المخاطر'; }
+    await user.save();
+    res.json({ success: true, riskScore: user.riskScore });
+});
+
+// ===== السحوبات =====
+app.get('/api/admin/withdrawals', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Withdrawal.find().populate('userId', 'username').sort({ createdAt: -1 }));
+});
+
+app.post('/api/admin/withdrawals/:id/approve', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const withdrawal = await Withdrawal.findById(req.params.id);
+    if (!withdrawal) return res.status(404).json({ error: 'الطلب غير موجود' });
+    withdrawal.status = 'completed';
+    await withdrawal.save();
+    res.json({ success: true });
+});
+
+// ===== أسعار الشحن =====
+app.get('/api/packages', async (req, res) => {
+    const settings = await SystemSettings.findOne();
+    res.json(settings?.packages || { '1000_coins': { price: 0.10, coins: 1000 } });
+});
+
+// ===== الدعوات =====
+app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { targetUserId, targetUsername } = req.body;
+    let targetUser = null;
+    if (targetUserId) targetUser = await User.findById(targetUserId);
+    else if (targetUsername) targetUser = await User.findOne({ username: targetUsername });
+    if (!targetUser) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    if (targetUser.role === 'admin' || targetUser.role === 'super_admin') {
+        return res.status(400).json({ error: 'المستخدم بالفعل Admin' });
+    }
+    targetUser.role = 'admin';
+    const newAgency = new Agency({ name: `${targetUser.username}_Agency`, ownerId: targetUser._id });
+    await newAgency.save();
+    targetUser.agencyId = newAgency._id;
+    await targetUser.save();
+    const sender = await User.findById(req.user.userId);
+    sender.invitedAdmins.push({ adminId: targetUser._id, agencyId: newAgency._id, joinedAt: new Date() });
+    sender.invitedAdminsStats.count += 1;
+    await sender.save();
+    res.json({ success: true, message: `تمت ترقية ${targetUser.username} إلى Admin` });
+});
+
+// ===== الفعاليات =====
+app.get('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Event.find().sort({ createdAt: -1 }));
+});
+
+app.post('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const event = new Event(req.body);
+    await event.save();
+    res.json({ success: true, event });
+});
+
+app.delete('/api/admin/events/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Event.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// ===== شاشة الظهور =====
+app.get('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await SplashScreen.find().sort({ createdAt: -1 }));
+});
+
+app.post('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const splash = new SplashScreen(req.body);
+    await splash.save();
+    res.json({ success: true, splash });
+});
+
+app.delete('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await SplashScreen.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// ===== البانرات =====
+app.get('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Banner.find().sort({ createdAt: -1 }));
+});
+
+app.post('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const banner = new Banner(req.body);
+    await banner.save();
+    res.json({ success: true, banner });
+});
+
+app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Banner.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// ===== إحصائيات متقدمة =====
+app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const totalUsers = await User.countDocuments();
+    const vipUsers = await User.countDocuments({ vipLevel: { $gt: 0 } });
+    const totalCoins = await User.aggregate([{ $group: { _id: null, total: { $sum: "$coins" } } }]);
+    const totalDiamonds = await User.aggregate([{ $group: { _id: null, total: { $sum: "$diamonds" } } }]);
+    const totalGiftsSent = await User.aggregate([{ $group: { _id: null, total: { $sum: "$totalGiftsSent" } } }]);
+    const bannedUsers = await User.countDocuments({ isBanned: true });
+    res.json({ users: { totalUsers }, vip: { total: vipUsers }, finance: { totalCoins: totalCoins[0]?.total || 0, totalDiamonds: totalDiamonds[0]?.total || 0 }, gifts: { totalSent: totalGiftsSent[0]?.total || 0 }, moderation: { bannedUsers } });
+});
+
+// ============ إنشاء Super Admin ============
+const createSuperAdmin = async () => {
+    const existing = await User.findOne({ role: 'super_admin' });
+    if (!existing) {
+        const hashedPassword = await bcrypt.hash('SuperAdmin123!', 10);
+        await User.create({
+            username: 'SuperAdmin',
+            email: 'superadmin@eaglevoice.com',
+            password: hashedPassword,
+            role: 'super_admin',
+            coins: 999999,
+            diamonds: 999999
+        });
+        console.log('✅ Super Admin created: superadmin@eaglevoice.com / SuperAdmin123!');
+    }
+};
+
+// ============ تشغيل الخادم ============
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+    console.error('❌ MONGODB_URI is not defined');
+    process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
+    .then(async () => {
+        console.log('✅ MongoDB connected successfully');
+        await createSuperAdmin();
+
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🦅 Eagle Voice Chat running on port ${PORT}`);
+            console.log(`📱 App: http://localhost:${PORT}`);
+            console.log(`🖥️ Admin: http://localhost:${PORT}/admin`);
+        });
+
+        // ============ Socket.IO ============
+        const socketIo = require('socket.io');
+        const io = socketIo(server, { cors: { origin: "*" }, transports: ['websocket', 'polling'] });
+        global.io = io;
+        global.onlineUsers = new Map();
+
+        io.use(async (socket, next) => {
+            try {
+                const token = socket.handshake.auth.token;
+                if (!token) return next(new Error('No token'));
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                const user = await User.findById(decoded.userId);
+                if (!user || user.isBanned) return next(new Error('Unauthorized'));
+                socket.user = user;
+                next();
+            } catch (err) { next(new Error('Auth failed')); }
+        });
+
+        io.on('connection', (socket) => {
+            console.log('✅ Socket connected:', socket.user.username);
+            global.onlineUsers.set(socket.user._id.toString(), socket.id);
+
+            socket.on('create-room', async (data, callback) => {
+                try {
+                    const existingRoom = await Room.findOne({ ownerId: socket.user._id });
+                    if (existingRoom) return callback({ error: 'لديك غرفة بالفعل' });
+                    const room = new Room({ name: data.name, ownerId: socket.user._id });
+                    await room.save();
+                    socket.join(`room:${room._id}`);
+                    callback({ success: true, room });
+                    io.emit('rooms-updated');
+                } catch (error) { callback({ error: error.message }); }
+            });
+
+            socket.on('join-room', async (data, callback) => {
+                try {
+                    socket.join(`room:${data.roomId}`);
+                    callback({ success: true });
+                    socket.to(`room:${data.roomId}`).emit('user-joined', socket.user.username);
+                } catch (error) { callback({ error: error.message }); }
+            });
+
+            socket.on('send-message', (data) => {
+                io.to(`room:${data.roomId}`).emit('new-message', {
+                    username: socket.user.username,
+                    message: data.message,
+                    time: new Date()
+                });
+            });
+
+            socket.on('disconnect', () => {
+                global.onlineUsers.delete(socket.user._id.toString());
+                console.log('❌ Socket disconnected:', socket.user.username);
+            });
+        });
+    })
+    .catch(err => {
+        console.error('❌ MongoDB error:', err.message);
+        process.exit(1);
+    });    amount: Number,
     method: { type: String, enum: ['vodafone', 'paypal', 'bank'] },
     accountInfo: Object,
     status: { type: String, enum: ['pending', 'completed', 'rejected'], default: 'pending' },
