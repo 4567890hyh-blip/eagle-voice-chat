@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eagle Voice - لوحة التحكم الكاملة</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
+        body { background: #0a0a0f; color: white; }
+        
+        /* مؤشر التوكن */
+        .token-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 9999;
+            background: #1a1a2e;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            border: 1px solid #e94560;
+        }
+        .token-status button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+            cursor: pointer;
+        }
+        .token-status .valid { color: #00ff00; }
+        .token-status .invalid { color: #ff4444; }
+        .token-status .warning { color: #ffaa00; }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .sidebar-header { padding: 20px; text-align: center; border-bottom: 1px solid #2a2a4a; }
+        .sidebar-header h2 { background: linear-gradient(45deg, #e94560, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .user-info-sidebar { padding: 15px; background: #1a1a2e; margin: 10px; border-radius: 12px; text-align: center; }
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #e94560; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 20px; }
+        .sidebar-nav { padding: 10px 0; }
+        .nav-section { padding: 8px 15px; color: #888; font-size: 11px; }
+        .nav-item { padding: 10px 20px; margin: 3px 0; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #ccc; border-radius: 0 20px 20px 0; transition: 0.3s; }
+        .nav-item:hover, .nav-item.active { background: #e94560; color: white; }
+        .nav-icon { font-size: 18px; width: 25px; }
+        
+        /* Main content */
+        .main-content { margin-right: 260px; padding: 20px; min-height: 100vh; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #2a2a4a; }
+        .page-title { font-size: 22px; font-weight: bold; }
+        
+        /* Cards and stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #1a1a2e; border-radius: 12px; padding: 15px; text-align: center; border: 1px solid #2a2a4a; }
+        .stat-card h3 { font-size: 24px; color: #e94560; }
+        
+        .btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; margin: 2px; }
+        .btn-primary { background: #e94560; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; }
+        
+        .data-table { width: 100%; background: #1a1a2e; border-radius: 12px; overflow: hidden; margin-top: 15px; font-size: 13px; }
+        .data-table th, .data-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #2a2a4a; }
+        .data-table th { background: #e94560; }
+        
+        .badge { padding: 3px 8px; border-radius: 15px; font-size: 10px; }
+        .badge-super { background: #ff0000; }
+        .badge-admin { background: #ff6600; }
+        .badge-vip { background: #ffd700; color: #000; }
+        
+        .flex { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .card { background: #1a1a2e; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+        .card h3 { margin-bottom: 12px; color: #e94560; font-size: 16px; border-bottom: 1px solid #2a2a4a; padding-bottom: 8px; }
+        
+        input, select { padding: 6px 10px; background: #2a2a4a; border: none; border-radius: 6px; color: white; font-size: 13px; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: #1a1a2e; padding: 20px; border-radius: 12px; width: 450px; max-width: 90%; max-height: 80vh; overflow-y: auto; }
+        .close { float: left; cursor: pointer; font-size: 20px; }
+        
+        .info-row { display: flex; justify-content: space-between; padding: 6px; border-bottom: 1px solid #2a2a4a; font-size: 13px; }
+        .info-label { color: #e94560; font-weight: bold; }
+        .device-item { background: #2a2a4a; padding: 8px; margin: 6px 0; border-radius: 6px; font-size: 12px; }
+        
+        @media (max-width: 768px) { .sidebar { width: 60px; } .sidebar-header h2, .user-info-sidebar, .nav-text { display: none; } .main-content { margin-right: 60px; } }
+        .loading { text-align: center; padding: 15px; color: #888; }
+        .error { color: #ff4444; text-align: center; padding: 10px; }
+    </style>
+</head>
+<body>
+<div class="token-status">
+    🔑 <span id="tokenStatusText">جاري التحقق...</span>
+    <button onclick="refreshToken()">🔄 تحديث التوكن</button>
+</div>
+<div class="sidebar">
+    <div class="sidebar-header"><h2>🦅 Eagle Admin</h2></div>
+    <div class="user-info-sidebar"><div class="user-avatar">👤</div><div id="sidebarUsername">جاري التحميل...</div><div id="sidebarRole"></div></div>
+    <div class="sidebar-nav">
+        <div class="nav-section">الرئيسية</div>
+        <div class="nav-item active" onclick="showSection('dashboard')"><span class="nav-icon">📊</span><span class="nav-text">Dashboard</span></div>
+        <div class="nav-section">المستخدمين</div>
+        <div class="nav-item" onclick="showSection('users')"><span class="nav-icon">👥</span><span class="nav-text">المستخدمين</span></div>
+        <div class="nav-item" onclick="showSection('vip')"><span class="nav-icon">👑</span><span class="nav-text">VIP</span></div>
+        <div class="nav-item" onclick="showSection('warnings')"><span class="nav-icon">⚠️</span><span class="nav-text">المخالفات</span></div>
+        <div class="nav-section">الغرف</div>
+        <div class="nav-item" onclick="showSection('rooms')"><span class="nav-icon">🏠</span><span class="nav-text">إدارة الغرف</span></div>
+        <div class="nav-section">المالية</div>
+        <div class="nav-item" onclick="showSection('gifts')"><span class="nav-icon">🎁</span><span class="nav-text">الهدايا</span></div>
+        <div class="nav-item" onclick="showSection('games')"><span class="nav-icon">🎮</span><span class="nav-text">الألعاب</span></div>
+        <div class="nav-item" onclick="showSection('withdrawals')"><span class="nav-icon">💰</span><span class="nav-text">السحوبات</span></div>
+        <div class="nav-item" onclick="showSection('packages')"><span class="nav-icon">💳</span><span class="nav-text">أسعار الشحن</span></div>
+        <div class="nav-section">الوكالات</div>
+        <div class="nav-item" onclick="showSection('agencies')"><span class="nav-icon">🏢</span><span class="nav-text">الوكالات</span></div>
+        <div class="nav-section">المحتوى</div>
+        <div class="nav-item" onclick="showSection('splash')"><span class="nav-icon">🖼️</span><span class="nav-text">شاشة الظهور</span></div>
+        <div class="nav-item" onclick="showSection('events')"><span class="nav-icon">🎉</span><span class="nav-text">الفعاليات</span></div>
+        <div class="nav-item" onclick="showSection('banners')"><span class="nav-icon">📢</span><span class="nav-text">البانرات</span></div>
+        <div class="nav-section">الإعدادات</div>
+        <div class="nav-item" onclick="showSection('settings')"><span class="nav-icon">⚙️</span><span class="nav-text">الإعدادات</span></div>
+    </div>
+</div>
+<div class="main-content">
+    <div class="top-bar"><div class="page-title" id="pageTitle">Dashboard</div><button class="btn btn-danger" onclick="logout()">🚪 خروج</button></div>
+    
+    <!-- Dashboard -->
+    <div id="dashboard-section"><div class="stats-grid" id="statsContainer"><div class="stat-card"><h3>-</h3><p>المستخدمين</p></div><div class="stat-card"><h3>-</h3><p>متصلون</p></div><div class="stat-card"><h3>-</h3><p>العملات</p></div><div class="stat-card"><h3>-</h3><p>الإيرادات</p></div></div></div>
+    
+    <!-- Users section -->
+    <div id="users-section" style="display:none">
+        <div class="card"><h3>👥 إدارة المستخدمين</h3><div class="flex"><input type="text" id="searchUser" placeholder="بحث..." style="flex:1"><button class="btn btn-primary" onclick="loadUsers()">🔍 بحث</button><button class="btn btn-info" onclick="loadUsers()">🔄 تحديث</button></div>
+        <div style="overflow-x:auto;"><table class="data-table" id="usersTable"><thead><tr><th>المستخدم</th><th>الدور</th><th>VIP</th><th>العملات</th><th>الألماس</th><th>المخاطر</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="8" class="loading">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
+        <div class=\"card\"><h3>➕ إجراءات سريعة<\/h3><div class=\"flex\"><input type=\"text\" id=\"quickUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><button class=\"btn btn-warning\" onclick=\"makeAdmin()\">👑 ترقية Admin<\/button><button class=\"btn btn-success\" onclick=\"addCoins()\">💰 إضافة عملات<\/button><button class=\"btn btn-info\" onclick=\"addDiamonds()\">💎 إضافة ألماس<\/button><button class=\"btn btn-danger\" onclick=\"banUser()\">🔨 حظر<\/button><\/div><\/div><\/div>
+    
+    <!-- Rooms section -->
+    <div id=\"rooms-section\" style=\"display:none\"><div class=\"card\"><h3>🏠 إدارة الغرف<\/h3><div class=\"flex\"><button class=\"btn btn-info\" onclick=\"loadRoomsList()\">🔄 تحديث القائمة<\/button><\/div>
+    <div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"roomsTable\"><thead><tr><th>الاسم</th><th>المالك</th><th>عدد المستخدمين</th><th>الصورة</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan=\"7\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div><\/div>
+    
+    <!-- VIP section -->
+    <div id=\"vip-section\" style=\"display:none\"><div class=\"card\"><h3>👑 نظام VIP<\/h3><div class=\"flex\"><input type=\"text\" id=\"vipUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><select id=\"vipLevelSelect\"><option value=\"1\">VIP 1<\/option><option value=\"2\">VIP 2<\/option><option value=\"3\">VIP 3<\/option><option value=\"4\">VIP 4<\/option><option value=\"5\">VIP 5<\/option><\/select><button class=\"btn btn-success\" onclick=\"giveVIP()\">🎁 إعطاء VIP<\/button><button class=\"btn btn-danger\" onclick=\"removeVIP()\">❌ سحب VIP<\/button><button class=\"btn btn-info\" onclick=\"loadVIPRanking()\">🏆 ترتيب VIP<\/button><\/div><div id=\"vipRanking\"><\/div><\/div><\/div>
+    
+    <!-- Warnings section -->
+    <div id=\"warnings-section\" style=\"display:none\"><div class=\"card\"><h3>⚠️ المخالفات<\/h3><div class=\"flex\"><input type=\"text\" id=\"warnUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><input type=\"text\" id=\"warnReason\" placeholder=\"سبب التحذير\" style=\"flex:1\"><button class=\"btn btn-warning\" onclick=\"addWarning()\">⚠️ إضافة تحذير<\/button><button class=\"btn btn-info\" onclick=\"loadWarnings()\">📋 عرض التحذيرات<\/button><\/div><div id=\"warningsList\"><\/div><\/div><\/div>
+    
+    <!-- Gifts section -->
+    <div id=\"gifts-section\" style=\"display:none\"><div class=\"card\"><h3>🎁 الهدايا<\/h3><div class=\"flex\"><input type=\"text\" id=\"giftName\" placeholder=\"الاسم\" style=\"width:120px\"><input type=\"number\" id=\"giftPrice\" placeholder=\"السعر\" style=\"width:80px\"><label><input type=\"checkbox\" id=\"giftIsLucky\"> حظ<\/label><input type=\"number\" id=\"giftWinChance\" placeholder=\"نسبة الفوز\" value=\"10\" style=\"width:80px\"><button class=\"btn btn-success\" onclick=\"addGift()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadGifts()\">🔄 تحديث<\/button><\/div>
+    <div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"giftsTable\"><thead><tr><th>الاسم</th><th>السعر</th><th>النوع</th><th>نسبة الفوز</th><th>حذف</th></tr></thead><tbody><tr><td colspan=\"5\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
+    <div class=\"card\"><h3>🎁 إرسال هدية<\/h3><div class=\"flex\"><input type=\"text\" id=\"sendGiftUsername\" placeholder=\"اسم المستخدم\" style=\"flex:1\"><select id=\"sendGiftSelect\" style=\"flex:1\"><\/select><button class=\"btn btn-primary\" onclick=\"sendGiftToUser()\">🎁 إرسال<\/button><\/div><\/div><\/div>
+    
+    <!-- Games section -->
+    <div id=\"games-section\" style=\"display:none\"><div class=\"card\"><h3>🎮 الألعاب<\/h3><div id=\"gamesInfo\"><\/div><button class=\"btn btn-info\" onclick=\"loadGames()\">🔄 تحديث<\/button><\/div><\/div>
+    
+    <!-- Withdrawals section -->
+    <div id=\"withdrawals-section\" style=\"display:none\"><div class=\"card\"><h3>💰 السحوبات<\/h3><button class=\"btn btn-info\" onclick=\"loadWithdrawals()\">🔄 تحديث<\/button><div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"withdrawalsTable\"><thead><tr><th>المستخدم</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan=\"5\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div><\/div>
+    
+    <!-- Packages section -->
+    <div id=\"packages-section\" style=\"display:none\"><div class=\"card\"><h3>💰 أسعار الشحن<\/h3><div id=\"packagesList\"><\/div><button class=\"btn btn-success\" onclick=\"savePackages()\">💾 حفظ<\/button><\/div><\/div>
+    
+    <!-- Agencies section -->
+    <div id=\"agencies-section\" style=\"display:none\"><div class=\"card\"><h3>🏢 الوكالات<\/h3><div class=\"flex\"><input type=\"text\" id=\"agencyName\" placeholder=\"اسم الوكالة\" style=\"flex:1\"><button class=\"btn btn-success\" onclick=\"createAgency()\">➕ إنشاء<\/button><button class=\"btn btn-info\" onclick=\"loadAgencies()\">🔄 تحديث<\/button><\/div><div style=\"overflow-x:auto;\"><table class=\"data-table\" id=\"agenciesTable\"><thead><tr><th>الاسم</th><th>المالك</th><th>تاريخ الإنشاء</th></tr></thead><tbody><tr><td colspan=\"3\" class=\"loading\">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div><\/div>
+    
+    <!-- Splash screen -->
+    <div id=\"splash-section\" style=\"display:none\"><div class=\"card\"><h3>🖼️ شاشة الظهور<\/h3><div class=\"flex\"><input type=\"text\" id=\"splashImage\" placeholder=\"رابط الصورة\" style=\"flex:2\"><input type=\"number\" id=\"splashDuration\" placeholder=\"المدة\" style=\"flex:1\"><button class=\"btn btn-success\" onclick=\"addSplash()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadSplash()\">🔄 تحديث<\/button><\/div><div id=\"splashList\"><\/div><\/div><\/div>
+    
+    <!-- Events -->
+    <div id=\"events-section\" style=\"display:none\"><div class=\"card\"><h3>🎉 الفعاليات<\/h3><div class=\"flex\"><input type=\"text\" id=\"eventName\" placeholder=\"الاسم\" style=\"flex:2\"><select id=\"eventType\"><option value=\"competition\">مسابقة</option><option value=\"bonus\">بونص</option><\/select><button class=\"btn btn-success\" onclick=\"addEvent()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadEvents()\">🔄 تحديث<\/button><\/div><div id=\"eventsList\"><\/div><\/div><\/div>
+    
+    <!-- Banners -->
+    <div id=\"banners-section\" style=\"display:none\"><div class=\"card\"><h3>📢 البانرات<\/h3><div class=\"flex\"><input type=\"text\" id=\"bannerImage\" placeholder=\"رابط الصورة\" style=\"flex:2\"><input type=\"text\" id=\"bannerLink\" placeholder=\"الرابط\" style=\"flex:2\"><button class=\"btn btn-success\" onclick=\"addBanner()\">➕ إضافة<\/button><button class=\"btn btn-info\" onclick=\"loadBanners()\">🔄 تحديث<\/button><\/div><div id=\"bannersList\"><\/div><\/div><\/div>
+    
+    <!-- Settings -->
+    <div id=\"settings-section\" style=\"display:none\"><div class=\"card\"><h3>⚙️ الإعدادات المتقدمة<\/h3><div class=\"stats-grid\" id=\"advancedStats\"><\/div><button class=\"btn btn-primary\" onclick=\"loadAdvancedStats()\">🔄 تحديث<\/button><\/div><\/div>
+<\/div>
+<div id=\"modal\" class=\"modal\"><div class=\"modal-content\"><span class=\"close\" onclick=\"closeModal()\">&times;</span><div id=\"modalBody\"><\/div><\/div><\/div>
+
+<script>
+    const API_URL = '';
+    let token = localStorage.getItem('token');
+    let currentUser = null;
+
+    // Helper functions
+    function checkTokenStatus() {
+        const statusSpan = document.getElementById('tokenStatusText');
+        if (!token) { statusSpan.innerHTML = '❌ غير موجود'; statusSpan.className = 'invalid'; return false; }
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const exp = payload.exp * 1000;
+            const now = Date.now();
+            if (exp < now) { statusSpan.innerHTML = '❌ منتهي'; statusSpan.className = 'invalid'; return false; }
+            const days = Math.ceil((exp - now) / (1000*3600*24));
+            statusSpan.innerHTML = `✅ صالح (${days} يوم)`;
+            statusSpan.className = 'valid';
+            return true;
+        } catch(e) { statusSpan.innerHTML = '⚠️ تالف'; statusSpan.className = 'warning'; return false; }
+    }
+    function refreshToken() { if (confirm('سيتم تسجيل الخروج')) { localStorage.removeItem('token'); window.location.href = '/'; } }
+    async function fetchAPI(url, options = {}) {
+        if (!checkTokenStatus()) { alert('⚠️ التوكن منتهي، الرجاء تسجيل الدخول مجدداً'); return null; }
+        try {
+            const res = await fetch(`${API_URL}${url}`, { ...options, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...options.headers } });
+            if (res.status === 401) { alert('❌ التوكن غير صالح، الرجاء تسجيل الدخول'); return null; }
+            return await res.json();
+        } catch(e) { console.error(e); alert('خطأ في الاتصال بالخادم'); return null; }
+    }
+    async function loadUserInfo() {
+        const data = await fetchAPI('/api/user');
+        if (data && data.user) {
+            currentUser = data.user;
+            document.getElementById('sidebarUsername').innerText = currentUser.username;
+            document.getElementById('sidebarRole').innerHTML = currentUser.role === 'super_admin' ? '<span class="badge badge-super">سوبر ادمن</span>' : (currentUser.role === 'admin' ? '<span class="badge badge-admin">ادمن</span>' : 'مستخدم');
+        }
+    }
+    async function loadStats() {
+        const data = await fetchAPI('/api/admin/stats');
+        if (data && data.stats) {
+            document.getElementById('statsContainer').innerHTML = `
+                <div class="stat-card"><h3>${data.stats.totalUsers || 0}</h3><p>المستخدمين</p></div>
+                <div class="stat-card"><h3>${data.stats.onlineUsers || 0}</h3><p>متصلون</p></div>
+                <div class="stat-card"><h3>${data.stats.totalCoins || 0}</h3><p>العملات</p></div>
+                <div class="stat-card"><h3>${data.stats.totalRevenue || 0} $</h3><p>الإيرادات</p></div>
+            `;
+        }
+    }
+
+    // ========== Users Management ==========
+    async function loadUsers() {
+        const search = document.getElementById('searchUser')?.value || '';
+        const data = await fetchAPI(`/api/admin/users?search=${search}`);
+        if (data && data.users) {
+            let html = '';
+            for (const u of data.users) {
+                html += `<tr>
+                    <td>${u.username}${u.uniqueId ? `<br><small>ID:${u.uniqueId}</small>` : ''}</td>
+                    <td>${u.role === 'super_admin' ? '<span class="badge badge-super">سوبر</span>' : (u.role === 'admin' ? '<span class="badge badge-admin">ادمن</span>' : 'عادي')}</td>
+                    <td>${u.vipLevel > 0 ? `<span class="badge badge-vip">VIP ${u.vipLevel}</span>` : '-'}</td>
+                    <td>💰 ${u.coins.toLocaleString()}</td>
+                    <td>💎 ${u.diamonds.toLocaleString()}</td>
+                    <td style="color:${u.riskScore > 70 ? '#ff4444' : '#ffaa00'}">${u.riskScore}%</td>
+                    <td>${u.isBanned ? '🚫 محظور' : '✅ نشط'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="showUserInfo('${u._id}', '${u.username}')">📋</button>
+                        <button class="btn btn-sm btn-primary" onclick="showUserActions('${u._id}', '${u.username}')">⚙️</button>
+                        <button class="btn btn-sm btn-warning" onclick="showSameDeviceAccounts('${u.deviceId}')">📱</button>
+                    </td>
+                </tr>`;
+            }
+            document.querySelector('#usersTable tbody').innerHTML = html;
+        }
+    }
+    async function showUserInfo(userId, username) {
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            const u = data.users[0];
+            const devices = await fetchAPI(`/api/admin/user-devices/${userId}`);
+            let html = `<h3>📋 معلومات ${username}</h3><div class="info-row"><span class="info-label">🆔 المعرف:</span><span>${u._id}</span></div>
+                        <div class="info-row"><span class="info-label">👤 الاسم:</span><span>${u.username}</span></div>
+                        <div class="info-row"><span class="info-label">📧 البريد:</span><span>${u.email || '-'}</span></div>
+                        <div class="info-row"><span class="info-label">📱 الهاتف:</span><span>${u.phone || '-'}</span></div>
+                        <div class="info-row"><span class="info-label">👑 الدور:</span><span>${u.role}</span></div>
+                        <div class="info-row"><span class="info-label">💎 VIP:</span><span>${u.vipLevel || 0}</span></div>
+                        <div class="info-row"><span class="info-label">💰 العملات:</span><span>${u.coins}</span></div>
+                        <div class="info-row"><span class="info-label">💎 الألماس:</span><span>${u.diamonds}</span></div>
+                        <div class="info-row"><span class="info-label">⚠️ المخاطرة:</span><span>${u.riskScore}%</span></div>
+                        <div class="info-row"><span class="info-label">🖥️ آخر IP:</span><span>${u.lastLoginIp || '-'}</span></div>`;
+            if (devices && devices.devices) {
+                html += `<h4>📱 الأجهزة (${devices.devices.length})</h4>`;
+                for (const d of devices.devices) html += `<div class="device-item">📱 ${d.deviceName || 'جهاز'}<br>🆔 ${d.deviceId}<br>🌐 ${d.ip || '-'}<br>📅 ${new Date(d.lastLogin).toLocaleString()}</div>`;
+            }
+            html += `<div class="flex"><button class="btn btn-primary" onclick="closeModal()">إغلاق</button></div>`;
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
+        }
+    }
+    async function showSameDeviceAccounts(deviceId) {
+        if (!deviceId) { alert('لا يوجد جهاز مسجل'); return; }
+        const data = await fetchAPI(`/api/admin/device-users/${deviceId}`);
+        if (data && data.users) {
+            let html = `<h3>📱 حسابات من نفس الجهاز (${data.users.length})</h3>`;
+            for (const u of data.users) html += `<div class="device-item">👤 ${u.username}<br>💰 ${u.coins} عملة<br>👑 ${u.role}<br>${u.isBanned ? '🚫 محظور' : '✅ نشط'}</div>`;
+            html += `<div class="flex"><button class="btn btn-primary" onclick="closeModal()">إغلاق</button></div>`;
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
+        }
+    }
+    function showUserActions(userId, username) {
+        document.getElementById('modalBody').innerHTML = `<h3>⚙️ إدارة ${username}</h3><div style="display:flex; flex-direction:column; gap:8px">
+            <button class="btn btn-warning" onclick="giveVIPToUser('${userId}', '${username}');closeModal()">👑 إعطاء VIP</button>
+            <button class="btn btn-danger" onclick="removeVIPFromUser('${userId}');closeModal()">❌ سحب VIP</button>
+            <button class="btn btn-success" onclick="addCoinsToUser('${userId}');closeModal()">💰 إضافة عملات</button>
+            <button class="btn btn-info" onclick="addDiamondsToUser('${userId}');closeModal()">💎 إضافة ألماس</button>
+            <button class="btn btn-primary" onclick="makeAdminById('${userId}');closeModal()">👑 ترقية Admin</button>
+            <button class="btn btn-danger" onclick="banUserById('${userId}');closeModal()">🔨 حظر</button>
+            <button class="btn btn-success" onclick="unbanUser('${userId}');closeModal()">✅ فك الحظر</button>
+            <button class="btn btn-warning" onclick="resetUserPassword('${userId}');closeModal()">🔑 تغيير كلمة السر</button>
+        </div>`;
+        document.getElementById('modal').style.display = 'flex';
+    }
+    async function makeAdmin() {
+        const username = document.getElementById('quickUsername').value;
+        if (!username) { alert('أدخل اسم المستخدم'); return; }
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            await fetchAPI('/api/invitations/send-admin', { method: 'POST', body: JSON.stringify({ targetUserId: data.users[0]._id, createNewAgency: true }) });
+            alert('تمت الترقية'); loadUsers();
+        }
+    }
+    async function makeAdminById(userId) {
+        await fetchAPI('/api/invitations/send-admin', { method: 'POST', body: JSON.stringify({ targetUserId: userId, createNewAgency: true }) });
+        alert('تمت الترقية'); loadUsers();
+    }
+    async function addCoins() {
+        const username = document.getElementById('quickUsername').value;
+        const amount = prompt('عدد العملات:');
+        if (!username || !amount) return;
+        await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ username, coins: parseInt(amount) }) });
+        alert('تم الإضافة'); loadUsers();
+    }
+    async function addDiamonds() {
+        const username = document.getElementById('quickUsername').value;
+        const amount = prompt('عدد الألماس:');
+        if (!username || !amount) return;
+        await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ username, diamonds: parseInt(amount) }) });
+        alert('تم الإضافة'); loadUsers();
+    }
+    async function addCoinsToUser(userId) {
+        const amount = prompt('عدد العملات:');
+        if (!amount) return;
+        await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ userId, coins: parseInt(amount) }) });
+        alert('تم الإضافة'); loadUsers();
+    }
+    async function addDiamondsToUser(userId) {
+        const amount = prompt('عدد الألماس:');
+        if (!amount) return;
+        await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ userId, diamonds: parseInt(amount) }) });
+        alert('تم الإضافة'); loadUsers();
+    }
+    async function banUser() {
+        const username = document.getElementById('quickUsername').value;
+        if (!username) { alert('أدخل اسم المستخدم'); return; }
+        const reason = prompt('سبب الحظر:');
+        if (!reason) return;
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            await fetchAPI('/api/admin/ban-user', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) });
+            alert('تم الحظر'); loadUsers();
+        }
+    }
+    async function banUserById(userId) {
+        const reason = prompt('سبب الحظر:');
+        if (!reason) return;
+        await fetchAPI('/api/admin/ban-user', { method: 'POST', body: JSON.stringify({ userId, reason }) });
+        alert('تم الحظر'); loadUsers();
+    }
+    async function unbanUser(userId) {
+        await fetchAPI(`/api/admin/unban-user/${userId}`, { method: 'POST' });
+        alert('تم فك الحظر'); loadUsers();
+    }
+    async function resetUserPassword(userId) {
+        const newPass = prompt('كلمة السر الجديدة:');
+        if (!newPass) return;
+        await fetchAPI('/api/admin/reset-password', { method: 'POST', body: JSON.stringify({ userId, newPassword: newPass }) });
+        alert('تم تغيير كلمة السر');
+    }
+
+    // ========== Rooms Management ==========
+    async function loadRoomsList() {
+        const data = await fetchAPI('/api/admin/rooms');
+        if (data && data.rooms) {
+            let html = '';
+            for (const room of data.rooms) {
+                html += `<tr>
+                    <td>${room.name}</td>
+                    <td>${room.ownerId || 'غير معروف'}</td>
+                    <td>${room.users?.length || 0}</td>
+                    <td>${room.imageUrl ? `<img src="${room.imageUrl}" width="40" style="border-radius:8px;">` : 'لا توجد'}</td>
+                    <td>${room.isActive ? '<span style="color:#28a745">✅ نشطة</span>' : '<span style="color:#ff4444">🔒 محظورة</span>'}</td>
+                    <td>${new Date(room.createdAt).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editRoomName('${room._id}', '${room.name}')">✏️ اسم</button>
+                        <button class="btn btn-sm btn-info" onclick="editRoomImage('${room._id}')">🖼️ صورة</button>
+                        ${room.isActive ? `<button class="btn btn-sm btn-danger" onclick="banRoom('${room._id}', '${room.name}')">🔨 حظر</button>` : `<button class="btn btn-sm btn-success" onclick="unbanRoom('${room._id}', '${room.name}')">🔓 فك الحظر</button>`}
+                        <button class="btn btn-sm btn-danger" onclick="deleteRoom('${room._id}', '${room.name}')">🗑️ حذف</button>
+                    </td>
+                </tr>`;
+            }
+            document.querySelector('#roomsTable tbody').innerHTML = html;
+        }
+    }
+    async function editRoomName(roomId, currentName) {
+        const newName = prompt('الاسم الجديد:', currentName);
+        if (!newName || newName === currentName) return;
+        const result = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
+        if (result?.success) { alert('تم تغيير الاسم'); loadRoomsList(); } else alert(result?.error || 'خطأ');
+    }
+    async function editRoomImage(roomId) {
+        const url = prompt('رابط الصورة الجديدة:');
+        if (!url) return;
+        const result = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ imageUrl: url }) });
+        if (result?.success) { alert('تم تحديث الصورة'); loadRoomsList(); } else alert(result?.error || 'خطأ');
+    }
+    async function banRoom(roomId, roomName) {
+        if (!confirm(`حظر الغرفة "${roomName}"؟`)) return;
+        const result = await fetchAPI(`/api/admin/rooms/${roomId}/ban`, { method: 'POST' });
+        if (result?.success) { alert(result.message); loadRoomsList(); } else alert(result?.error || 'خطأ');
+    }
+    async function unbanRoom(roomId, roomName) {
+        if (!confirm(`فك حظر الغرفة "${roomName}"؟`)) return;
+        const result = await fetchAPI(`/api/admin/rooms/${roomId}/unban`, { method: 'POST' });
+        if (result?.success) { alert(result.message); loadRoomsList(); } else alert(result?.error || 'خطأ');
+    }
+    async function deleteRoom(roomId, roomName) {
+        if (!confirm(`⚠️ حذف الغرفة "${roomName}" نهائياً؟`)) return;
+        const result = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'DELETE' });
+        if (result?.success) { alert(result.message); loadRoomsList(); } else alert(result?.error || 'خطأ');
+    }
+
+    // ========== VIP ==========
+    async function giveVIP() {
+        const username = document.getElementById('vipUsername').value;
+        const level = document.getElementById('vipLevelSelect').value;
+        if (!username) { alert('أدخل اسم المستخدم'); return; }
+        const result = await fetchAPI('/api/admin/give-vip', { method: 'POST', body: JSON.stringify({ username, level: parseInt(level), days: 30 }) });
+        alert(result?.message || 'تمت الترقية'); loadUsers(); loadVIPRanking();
+    }
+    async function giveVIPToUser(userId, username) {
+        const level = prompt(`مستوى VIP (1-5):`);
+        if (!level || level<1 || level>5) return;
+        await fetchAPI('/api/admin/give-vip', { method: 'POST', body: JSON.stringify({ userId, level: parseInt(level), days: 30 }) });
+        alert('تمت الترقية'); loadUsers(); loadVIPRanking();
+    }
+    async function removeVIP() {
+        const username = document.getElementById('vipUsername').value;
+        if (!username) { alert('أدخل اسم المستخدم'); return; }
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            await fetchAPI(`/api/admin/remove-vip/${data.users[0]._id}`, { method: 'POST' });
+            alert('تم سحب VIP'); loadUsers(); loadVIPRanking();
+        }
+    }
+    async function removeVIPFromUser(userId) {
+        await fetchAPI(`/api/admin/remove-vip/${userId}`, { method: 'POST' });
+        alert('تم سحب VIP'); loadUsers(); loadVIPRanking();
+    }
+    async function loadVIPRanking() {
+        const data = await fetchAPI('/api/vip/ranking');
+        if (data && data.length) {
+            let html = '<table class="data-table"><thead><tr><th>#</th><th>المستخدم</th><th>المستوى</th><th>العملات</th></tr></thead><tbody>';
+            data.forEach((u,i)=> html += `<tr><td>${i+1}</td><td>${u.username}</td><td>VIP ${u.vipLevel}</td><td>💰 ${u.coins}</td></tr>`);
+            html += '</tbody></table>';
+            document.getElementById('vipRanking').innerHTML = html;
+        } else document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>';
+    }
+
+    // ========== Warnings ==========
+    async function addWarning() {
+        const username = document.getElementById('warnUsername').value;
+        const reason = document.getElementById('warnReason').value;
+        if (!username || !reason) { alert('أدخل البيانات'); return; }
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            const result = await fetchAPI('/api/admin/warnings/add', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) });
+            alert(`تم إضافة تحذير. المخاطرة: ${result?.riskScore}%`); loadUsers();
+        }
+    }
+    async function loadWarnings() {
+        const data = await fetchAPI('/api/admin/users');
+        if (data && data.users) {
+            let html = '<table class="data-table"><thead><tr><th>المستخدم</th><th>المخاطرة</th><th>التحذيرات</th><th>الحالة</th></tr></thead><tbody>';
+            for (const u of data.users.filter(u=>u.riskScore>0)) {
+                html += `<tr><td>${u.username}</td><td style="color:${u.riskScore>70?'#ff4444':'#ffaa00'}">${u.riskScore}%</td><td>${u.warnings?.length||0}</td><td>${u.isBanned?'محظور':'نشط'}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('warningsList').innerHTML = html;
+        }
+    }
+
+    // ========== Gifts ==========
+    async function loadGifts() {
+        const data = await fetchAPI('/api/admin/gifts');
+        if (data) {
+            let html = '';
+            for (const g of data) html += `<tr><td>${g.name}</td><td>${g.price}</td><td>${g.isLuckyGift?'🎲 حظ':'🎁 عادي'}</td><td>${g.isLuckyGift?g.winChance+'%':'-'}</td><td><button class="btn btn-sm btn-danger" onclick="deleteGift('${g._id}')">🗑️</button></td></tr>`;
+            document.querySelector('#giftsTable tbody').innerHTML = html;
+            const select = document.getElementById('sendGiftSelect');
+            if (select) select.innerHTML = '<option value="">اختر هدية</option>' + data.map(g=>`<option value="${g._id}">${g.name} (${g.price})</option>`).join('');
+        }
+    }
+    async function addGift() {
+        const name = document.getElementById('giftName').value;
+        const price = document.getElementById('giftPrice').value;
+        if (!name || !price) { alert('أدخل البيانات'); return; }
+        await fetchAPI('/api/admin/gifts', { method: 'POST', body: JSON.stringify({
+            name, price: parseInt(price),
+            isLuckyGift: document.getElementById('giftIsLucky').checked,
+            winChance: parseInt(document.getElementById('giftWinChance').value)||10
+        }) });
+        alert('تمت الإضافة'); loadGifts();
+    }
+    async function deleteGift(id) {
+        if (!confirm('حذف الهدية؟')) return;
+        await fetchAPI(`/api/admin/gifts/${id}`, { method: 'DELETE' });
+        loadGifts();
+    }
+    async function sendGiftToUser() {
+        const username = document.getElementById('sendGiftUsername').value;
+        const giftId = document.getElementById('sendGiftSelect').value;
+        if (!username || !giftId) { alert('أدخل البيانات'); return; }
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            await fetchAPI('/api/gift/send', { method: 'POST', body: JSON.stringify({ giftId, targetUserId: data.users[0]._id }) });
+            alert('تم إرسال الهدية');
+        }
+    }
+
+    // ========== Games ==========
+    async function loadGames() {
+        const data = await fetchAPI('/api/admin/games');
+        if (data && data.length) {
+            let html = '';
+            for (const g of data) html += `<div style="background:#2a2a4a; padding:10px; margin:10px 0"><strong>🎮 ${g.name}</strong><br>نسبة الربح: <input type="number" id="edge_${g._id}" value="${g.houseEdge}" style="width:60px">%<br>حماية AI: <input type="checkbox" id="ai_${g._id}" ${g.aiProtectionEnabled?'checked':''}><button class="btn btn-sm btn-primary" onclick="updateGame('${g._id}')">💾 حفظ</button></div>`;
+            document.getElementById('gamesInfo').innerHTML = html;
+        } else document.getElementById('gamesInfo').innerHTML = '<p class="loading">لا توجد ألعاب</p>';
+    }
+    async function updateGame(id) {
+        const houseEdge = document.getElementById(`edge_${id}`).value;
+        const aiEnabled = document.getElementById(`ai_${id}`).checked;
+        await fetchAPI(`/api/admin/games/${id}`, { method: 'PUT', body: JSON.stringify({ houseEdge: parseInt(houseEdge), aiProtectionEnabled: aiEnabled }) });
+        alert('تم التحديث'); loadGames();
+    }
+
+    // ========== Withdrawals ==========
+    async function loadWithdrawals() {
+        const data = await fetchAPI('/api/admin/withdrawals');
+        if (data && data.length) {
+            let html = '';
+            for (const w of data) html += `<tr><td>${w.userId?.username||'-'}</td><td>$${w.amount}</td><td>${w.status==='pending'?'⏳ قيد المراجعة':'✅ مكتمل'}</td><td>${new Date(w.createdAt).toLocaleDateString()}</td><td>${w.status==='pending'?`<button class="btn btn-sm btn-success" onclick="approveWithdrawal('${w._id}')">موافقة</button>`:'-'}</td></tr>`;
+            document.querySelector('#withdrawalsTable tbody').innerHTML = html;
+        }
+    }
+    async function approveWithdrawal(id) {
+        if (!confirm('موافقة على طلب السحب؟')) return;
+        await fetchAPI(`/api/admin/withdrawals/${id}/approve`, { method: 'POST' });
+        loadWithdrawals();
+    }
+
+    // ========== Agencies ==========
+    async function createAgency() {
+        const name = document.getElementById('agencyName').value;
+        if (!name) { alert('أدخل الاسم'); return; }
+        const result = await fetchAPI('/api/agency/create', { method: 'POST', body: JSON.stringify({ name }) });
+        if (result?.success) alert('تم الإنشاء'); loadAgencies();
+    }
+    async function loadAgencies() {
+        const data = await fetchAPI('/api/agencies');
+        if (data && data.agencies) {
+            let html = '';
+            for (const a of data.agencies) html += `<tr><td>${a.name}</td><td>${a.ownerId?.username||'-'}</td><td>${new Date(a.createdAt).toLocaleDateString()}</td></tr>`;
+            document.querySelector('#agenciesTable tbody').innerHTML = html;
+        }
+    }
+
+    // ========== Splash, Events, Banners, Packages, Settings ==========
+    async function addSplash() {
+        const url = document.getElementById('splashImage').value;
+        const dur = document.getElementById('splashDuration').value;
+        if (!url) { alert('أدخل رابط الصورة'); return; }
+        await fetchAPI('/api/admin/splash', { method: 'POST', body: JSON.stringify({ imageUrl: url, duration: parseInt(dur), isActive: true }) });
+        alert('تمت الإضافة'); loadSplash();
+    }
+    async function loadSplash() {
+        const data = await fetchAPI('/api/admin/splash');
+        if (data && data.length) {
+            let html = '<div class="flex">';
+            for (const s of data) html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px"><img src="${s.imageUrl}" width="40"><br>المدة: ${s.duration} ث<br><button class="btn btn-sm btn-danger" onclick="deleteSplash('${s._id}')">🗑️</button></div>`;
+            html += '</div>';
+            document.getElementById('splashList').innerHTML = html;
+        }
+    }
+    async function deleteSplash(id) {
+        if (!confirm('حذف شاشة الظهور؟')) return;
+        await fetchAPI(`/api/admin/splash/${id}`, { method: 'DELETE' });
+        loadSplash();
+    }
+    async function addEvent() {
+        const name = document.getElementById('eventName').value;
+        const type = document.getElementById('eventType').value;
+        if (!name) { alert('أدخل الاسم'); return; }
+        await fetchAPI('/api/admin/events', { method: 'POST', body: JSON.stringify({ name, type, isActive: true }) });
+        alert('تمت الإضافة'); loadEvents();
+    }
+    async function loadEvents() {
+        const data = await fetchAPI('/api/admin/events');
+        if (data && data.length) {
+            let html = '<div class="flex">';
+            for (const e of data) html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px"><strong>${e.name}</strong><br>${e.type}<br><button class="btn btn-sm btn-danger" onclick="deleteEvent('${e._id}')">🗑️</button></div>`;
+            html += '</div>';
+            document.getElementById('eventsList').innerHTML = html;
+        }
+    }
+    async function deleteEvent(id) {
+        if (!confirm('حذف الفعالية؟')) return;
+        await fetchAPI(`/api/admin/events/${id}`, { method: 'DELETE' });
+        loadEvents();
+    }
+    async function addBanner() {
+        const image = document.getElementById('bannerImage').value;
+        const link = document.getElementById('bannerLink').value;
+        if (!image) { alert('أدخل رابط الصورة'); return; }
+        await fetchAPI('/api/admin/banners', { method: 'POST', body: JSON.stringify({ imageUrl: image, linkUrl: link, isActive: true }) });
+        alert('تمت الإضافة'); loadBanners();
+    }
+    async function loadBanners() {
+        const data = await fetchAPI('/api/admin/banners');
+        if (data && data.length) {
+            let html = '<div class="flex">';
+            for (const b of data) html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px"><img src="${b.imageUrl}" width="40"><br><button class="btn btn-sm btn-danger" onclick="deleteBanner('${b._id}')">🗑️</button></div>`;
+            html += '</div>';
+            document.getElementById('bannersList').innerHTML = html;
+        }
+    }
+    async function deleteBanner(id) {
+        if (!confirm('حذف البانر؟')) return;
+        await fetchAPI(`/api/admin/banners/${id}`, { method: 'DELETE' });
+        loadBanners();
+    }
+    async function loadPackages() {
+        const data = await fetchAPI('/api/packages');
+        if (data) {
+            let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></tr></thead><tbody>';
+            for (const [k,p] of Object.entries(data)) html += `<tr><td>${k.replace('_',' ')}</td><td>$${p.price}</td><td>💰 ${p.coins}</td></tr>`;
+            html += '</tbody></table>';
+            document.getElementById('packagesList').innerHTML = html;
+        }
+    }
+    async function savePackages() { alert('تم حفظ الإعدادات (تحديث الأسعار يتم من قاعدة البيانات)'); }
+    async function loadAdvancedStats() {
+        const data = await fetchAPI('/api/admin/advanced-stats');
+        if (data) document.getElementById('advancedStats').innerHTML = `
+            <div class="stat-card"><h3>${data.users?.totalUsers||0}</h3><p>المستخدمين</p></div>
+            <div class="stat-card"><h3>${data.vip?.total||0}</h3><p>VIP</p></div>
+            <div class="stat-card"><h3>${data.gifts?.totalSent||0}</h3><p>الهدايا المرسلة</p></div>
+            <div class="stat-card"><h3>${data.moderation?.bannedUsers||0}</h3><p>محظورين</p></div>
+        `;
+    }
+
+    // Navigation
+    function showSection(section) {
+        const sections = ['dashboard','users','rooms','vip','warnings','gifts','games','withdrawals','packages','agencies','splash','events','banners','settings'];
+        sections.forEach(s => { const el = document.getElementById(`${s}-section`); if (el) el.style.display = s === section ? 'block' : 'none'; });
+        if (section === 'dashboard') loadStats();
+        if (section === 'users') loadUsers();
+        if (section === 'rooms') loadRoomsList();
+        if (section === 'vip') loadVIPRanking();
+        if (section === 'gifts') loadGifts();
+        if (section === 'games') loadGames();
+        if (section === 'withdrawals') loadWithdrawals();
+        if (section === 'packages') loadPackages();
+        if (section === 'agencies') loadAgencies();
+        if (section === 'splash') loadSplash();
+        if (section === 'events') loadEvents();
+        if (section === 'banners') loadBanners();
+        if (section === 'settings') loadAdvancedStats();
+    }
+    function closeModal() { document.getElementById('modal').style.display = 'none'; }
+    function logout() { localStorage.removeItem('token'); window.location.href = '/'; }
+
+    // Initial load
+    checkTokenStatus();
+    loadUserInfo();
+    loadStats();
+    setInterval(checkTokenStatus, 30000);
+</script>
+</body>
+</html>
