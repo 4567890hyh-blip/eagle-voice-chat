@@ -15,68 +15,50 @@ app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
 mongoose.set('strictQuery', false);
 
-// إعداد رفع الملفات
+// ============ ط¥ط¹ط¯ط§ط¯ ط±ظپط¹ ط§ظ„ظ…ظ„ظپط§طھ ============
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, path.join(__dirname, '../../uploads')),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
 
-// ============ نظام التوكن المتقدم ============
-const generateAccessToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
-};
+// ============ ظ†ط¸ط§ظ… ط§ظ„طھظˆظƒظ† ============
+const generateToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+const verifyToken = (token) => { try { return jwt.verify(token, process.env.JWT_SECRET); } catch { return null; } };
 
-const generateRefreshToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, { expiresIn: '7d' });
-};
-
-const verifyAccessToken = (token) => {
-    try { return jwt.verify(token, process.env.JWT_SECRET); }
-    catch { return null; }
-};
-
-const verifyRefreshToken = (token) => {
-    try { return jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET); }
-    catch { return null; }
-};
-
-// Middleware للتحقق من Access Token
+// ============ Middleware ============
 const authenticate = async (req, res, next) => {
     try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: 'No token provided' });
-        }
-        const token = authHeader.split(' ')[1];
-        const decoded = verifyAccessToken(token);
-        if (!decoded) return res.status(401).json({ error: 'Invalid or expired token' });
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'No token' });
+        const decoded = verifyToken(token);
+        if (!decoded) return res.status(401).json({ error: 'Invalid token' });
         const user = await User.findById(decoded.userId);
         if (!user || user.isBanned) return res.status(401).json({ error: 'Unauthorized' });
         req.user = user;
         next();
-    } catch (error) {
-        res.status(401).json({ error: 'Authentication failed' });
-    }
+    } catch { res.status(401).json({ error: 'Auth failed' }); }
 };
 
 const authorize = (roles = []) => (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    if (roles.length && !roles.includes(req.user.role)) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
+    if (roles.length && !roles.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
     next();
 };
 
-// خدمة الملفات الثابتة
+// ط®ط¯ظ…ط© ط§ظ„ظ…ظ„ظپط§طھ ط§ظ„ط«ط§ط¨طھط©
 app.use(express.static(path.join(__dirname, '../../client')));
 app.use('/eagle-voice', express.static(path.join(__dirname, '../../eagle-voice')));
 
-// روابط الصفحات
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../../client/index.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, '../../eagle-voice/index.html')));
+// ط±ظˆط§ط¨ط· ط§ظ„طµظپط­ط§طھ
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../client/index.html'));
+});
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../eagle-voice/index.html'));
+});
 
-// ============ النماذج ============
+// ============ ط§ظ„ظ†ظ…ط§ط°ط¬ ============
 const UserSchema = new mongoose.Schema({
     username: { type: String, unique: true, required: true },
     email: { type: String, unique: true, sparse: true },
@@ -98,10 +80,8 @@ const UserSchema = new mongoose.Schema({
     banReason: String,
     warnings: [{ reason: String, date: Date, moderator: String }],
     riskScore: { type: Number, default: 0 },
-    uniqueId: { type: String, unique: true, sparse: true },
     deviceId: String,
     devices: [{ deviceId: String, deviceName: String, lastLogin: Date, ip: String }],
-    refreshTokens: [{ token: String, deviceId: String, createdAt: Date, expiresAt: Date }],
     sessions: [{ token: String, deviceId: String, createdAt: Date, expiresAt: Date, ip: String }],
     agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency' },
     transactions: [{ type: String, amount: Number, coins: Number, diamonds: Number, description: String, date: Date, status: String }],
@@ -111,7 +91,7 @@ const UserSchema = new mongoose.Schema({
 const RoomSchema = new mongoose.Schema({
     name: { type: String, required: true },
     ownerId: { type: String, required: true },
-    users: [{ userId: String, joinedAt: Date }],
+    users: [{ userId: String, joinedAt: Date, isSpeaking: Boolean }],
     maxMicrophones: { type: Number, default: 5 },
     currentSpeakers: [{ type: String }],
     isMicsLocked: { type: Boolean, default: false },
@@ -186,35 +166,19 @@ const Banner = mongoose.model('Banner', BannerSchema);
 
 // ============ Routes API ============
 
-// ----- المصادقة -----
+// ----- ط§ظ„ظ…طµط§ط¯ظ‚ط© -----
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, email, phone, deviceId } = req.body;
         const existing = await User.findOne({ username });
-        if (existing) return res.status(400).json({ error: 'اسم المستخدم موجود' });
+        if (existing) return res.status(400).json({ error: 'ط§ط³ظ… ط§ظ„ظ…ط³طھط®ط¯ظ… ظ…ظˆط¬ظˆط¯' });
         const hashed = await bcrypt.hash(password, 10);
         const user = new User({ username, email, phone, password: hashed, deviceId });
         await user.save();
-        const accessToken = generateAccessToken(user._id);
-        const refreshToken = generateRefreshToken(user._id);
-        user.refreshTokens.push({ token: refreshToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000) });
-        user.sessions.push({ token: accessToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 15*60*1000), ip: req.ip });
+        const token = generateToken(user._id);
+        user.sessions.push({ token, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000), ip: req.ip });
         await user.save();
-        res.json({
-            success: true,
-            accessToken,
-            refreshToken,
-            user: {
-                id: user._id,
-                username: user.username,
-                role: user.role,
-                coins: user.coins,
-                diamonds: user.diamonds,
-                avatar: user.avatar,
-                frame: user.frame,
-                entryEffect: user.entryEffect
-            }
-        });
+        res.json({ success: true, token, user: { id: user._id, username: user.username, role: user.role, coins: user.coins, diamonds: user.diamonds, avatar: user.avatar, frame: user.frame, entryEffect: user.entryEffect } });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
@@ -222,126 +186,255 @@ app.post('/api/login', async (req, res) => {
     try {
         const { username, password, deviceId } = req.body;
         const user = await User.findOne({ username });
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            return res.status(401).json({ error: 'بيانات غير صحيحة' });
-        }
-        if (user.isBanned) return res.status(403).json({ error: 'الحساب محظور' });
+        if (!user || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©' });
+        if (user.isBanned) return res.status(403).json({ error: 'ط§ظ„ط­ط³ط§ط¨ ظ…ط­ط¸ظˆط±' });
         user.devices.push({ deviceId, lastLogin: new Date(), ip: req.ip });
         user.currentDeviceId = deviceId;
         user.lastLoginIp = req.ip;
         user.lastLoginDate = new Date();
-        const accessToken = generateAccessToken(user._id);
-        const refreshToken = generateRefreshToken(user._id);
-        user.refreshTokens.push({ token: refreshToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000) });
-        user.sessions.push({ token: accessToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 15*60*1000), ip: req.ip });
+        const token = generateToken(user._id);
+        user.sessions.push({ token, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000), ip: req.ip });
         await user.save();
-        res.json({
-            success: true,
-            accessToken,
-            refreshToken,
-            user: {
-                id: user._id,
-                username: user.username,
-                role: user.role,
-                coins: user.coins,
-                diamonds: user.diamonds,
-                vipLevel: user.vipLevel,
-                avatar: user.avatar,
-                frame: user.frame,
-                entryEffect: user.entryEffect
-            }
-        });
+        res.json({ success: true, token, user: { id: user._id, username: user.username, role: user.role, coins: user.coins, diamonds: user.diamonds, vipLevel: user.vipLevel, avatar: user.avatar, frame: user.frame, entryEffect: user.entryEffect } });
     } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.post('/api/refresh-token', async (req, res) => {
-    const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(401).json({ error: 'Refresh token required' });
-    const decoded = verifyRefreshToken(refreshToken);
-    if (!decoded) return res.status(403).json({ error: 'Invalid refresh token' });
-    const user = await User.findById(decoded.userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const validToken = user.refreshTokens.some(t => t.token === refreshToken);
-    if (!validToken) return res.status(403).json({ error: 'Refresh token revoked' });
-    const newAccessToken = generateAccessToken(user._id);
-    user.sessions.push({ token: newAccessToken, deviceId: user.currentDeviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 15*60*1000), ip: req.ip });
-    await user.save();
-    res.json({ accessToken: newAccessToken });
-});
-
-app.post('/api/logout', authenticate, async (req, res) => {
-    const token = req.headers.authorization.split(' ')[1];
-    req.user.sessions = req.user.sessions.filter(s => s.token !== token);
-    await req.user.save();
-    res.json({ success: true, message: 'Logged out' });
-});
-
-app.post('/api/logout-all', authenticate, async (req, res) => {
-    req.user.sessions = [];
-    req.user.refreshTokens = [];
-    await req.user.save();
-    res.json({ success: true, message: 'Logged out from all devices' });
 });
 
 app.get('/api/user', authenticate, async (req, res) => {
     res.json({ user: req.user });
 });
 
-// ----- باقي الـ Routes (نفس الكود السابق مع الحفاظ على الوظائف) -----
-// (لن أكررها هنا لأنها طويلة، لكن يجب أن تبقى كما هي)
-// تأكد من إضافة نقاط النهاية التالية كما هي موجودة في الكود الأصلي:
-// - إدارة المستخدمين (ban, unban, add-coins, ...)
-// - إدارة المعرفات المميزة (give-unique-id, remove-unique-id)
-// - إدارة الغرف (admin/rooms, rooms)
-// - VIP، الهدايا، الألعاب، السحوبات، الوكالات، شاشة الظهور، الفعاليات، البانرات، إلخ.
+app.post('/api/upload-avatar', authenticate, upload.single('avatar'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'ظ„ظ… ظٹطھظ… ط±ظپط¹ ظ…ظ„ظپ' });
+    req.user.avatar = '/uploads/' + req.file.filename;
+    await req.user.save();
+    res.json({ success: true, avatar: req.user.avatar });
+});
 
-// ============ هنا نضيف جميع النقاط الأخرى من الكود السابق (لم تتغير) ============
-// (يجب دمج الكود السابق بالكامل بعد سطر `app.get('/api/user', authenticate, ...)`)
+app.post('/api/buy-item', authenticate, async (req, res) => {
+    const { itemId, type } = req.body;
+    const gift = await Gift.findOne({ _id: itemId, type, isActive: true });
+    if (!gift) return res.status(404).json({ error: 'ط§ظ„ط¹ظ†طµط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯' });
+    if (req.user.coins < gift.price) return res.status(400).json({ error: 'ط±طµظٹط¯ ط؛ظٹط± ظƒط§ظپ' });
+    req.user.coins -= gift.price;
+    if (type === 'frame') req.user.frame = gift.imageUrl || gift.name;
+    else if (type === 'entry_effect') req.user.entryEffect = gift.effectName || gift.name;
+    await req.user.save();
+    res.json({ success: true, frame: req.user.frame, entryEffect: req.user.entryEffect, newBalance: req.user.coins });
+});
 
-// لتجنب تكرار كتابة الكود الطويل، يمكنك الاحتفاظ بالأقسام التالية كما هي من الكود الأصلي:
-// - Admin: المستخدمين (ban, unban, add-coins, add-diamonds, user-devices, device-users, stats)
-// - إدارة المعرفات المميزة
-// - Admin: الغرف
-// - Admin: VIP
-// - Admin: الهدايا والإطارات
-// - Admin: الألعاب
-// - Admin: السحوبات
-// - الوكالات (مع حذف)
-// - شاشة الظهور، الفعاليات، البانرات
-// - أسعار الشحن والإحصائيات المتقدمة
-// - دعوة Admin
-// - المخالفات (إضافة وحذف)
-// - الغرف العامة
-// - تشغيل Socket.IO
+// ----- Admin: ط¥ط¯ط§ط±ط© ط§ظ„ظ…ط³طھط®ط¯ظ…ظٹظ† -----
+app.get('/api/admin/users', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { search } = req.query;
+    let query = {};
+    if (search) query.username = { $regex: search, $options: 'i' };
+    const users = await User.find(query).select('-password -sessions');
+    res.json({ users });
+});
 
-// نظرًا لطول الكود، سأفترض أنك ستدمج الأقسام المذكورة أعلاه كما هي من الكود السابق (الذي يعمل بالفعل).
+app.post('/api/admin/ban-user', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, reason } = req.body;
+    const user = await User.findByIdAndUpdate(userId, { isBanned: true, banReason: reason }, { new: true });
+    res.json({ success: true, message: `طھظ… ط­ط¸ط± ${user.username}` });
+});
 
-// ============ تشغيل الخادم مع Socket.IO ============
+app.post('/api/admin/unban-user/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await User.findByIdAndUpdate(req.params.userId, { isBanned: false, banReason: null });
+    res.json({ success: true });
+});
+
+app.post('/api/admin/add-coins', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, coins } = req.body;
+    await User.findByIdAndUpdate(userId, { $inc: { coins } });
+    res.json({ success: true });
+});
+
+app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const totalUsers = await User.countDocuments();
+    const totalCoins = (await User.aggregate([{ $group: { _id: null, total: { $sum: "$coins" } } }]))[0]?.total || 0;
+    res.json({ stats: { totalUsers, onlineUsers: global.onlineUsers?.size || 0, totalCoins } });
+});
+
+// ----- Admin: ط¥ط¯ط§ط±ط© ط§ظ„ظ‡ط¯ط§ظٹط§ ظˆط§ظ„ط¥ط·ط§ط±ط§طھ -----
+app.get('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Gift.find());
+});
+app.post('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const gift = new Gift(req.body);
+    await gift.save();
+    res.json({ success: true, gift });
+});
+app.delete('/api/admin/gifts/:giftId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Gift.findByIdAndDelete(req.params.giftId);
+    res.json({ success: true });
+});
+
+// ----- ط§ظ„ط؛ط±ظپ (API) -----
+app.get('/api/rooms', async (req, res) => {
+    const rooms = await Room.find({ isActive: true }).sort({ createdAt: -1 });
+    res.json(rooms);
+});
+
+app.get('/api/admin/rooms', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const rooms = await Room.find().sort({ createdAt: -1 });
+    res.json({ rooms });
+});
+
+app.put('/api/admin/rooms/:roomId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { name, imageUrl, isActive } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (imageUrl !== undefined) update.imageUrl = imageUrl;
+    if (isActive !== undefined) update.isActive = isActive;
+    const room = await Room.findByIdAndUpdate(req.params.roomId, update, { new: true });
+    res.json({ success: true, room });
+});
+
+app.post('/api/admin/rooms/:roomId/ban', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const room = await Room.findByIdAndUpdate(req.params.roomId, { isActive: false }, { new: true });
+    res.json({ success: true, message: `طھظ… ط­ط¸ط± ط§ظ„ط؛ط±ظپط© ${room.name}` });
+});
+
+app.post('/api/admin/rooms/:roomId/unban', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const room = await Room.findByIdAndUpdate(req.params.roomId, { isActive: true }, { new: true });
+    res.json({ success: true, message: `طھظ… ظپظƒ ط­ط¸ط± ط§ظ„ط؛ط±ظپط© ${room.name}` });
+});
+
+app.delete('/api/admin/rooms/:roomId', authenticate, authorize(['super_admin']), async (req, res) => {
+    const room = await Room.findByIdAndDelete(req.params.roomId);
+    res.json({ success: true, message: `طھظ… ط­ط°ظپ ط§ظ„ط؛ط±ظپط© ${room.name}` });
+});
+
+// ----- VIP -----
+app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, level, days } = req.body;
+    const user = await User.findByIdAndUpdate(userId, { vipLevel: level, vipExpiry: new Date(Date.now() + (days || 30) * 24 * 60 * 60 * 1000) }, { new: true });
+    res.json({ success: true, message: `طھظ… طھط±ظ‚ظٹط© ${user.username} ط¥ظ„ظ‰ VIP ${level}` });
+});
+
+app.post('/api/admin/remove-vip/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await User.findByIdAndUpdate(req.params.userId, { vipLevel: 0, vipExpiry: null });
+    res.json({ success: true });
+});
+
+app.get('/api/vip/ranking', async (req, res) => {
+    const users = await User.find({ vipLevel: { $gt: 0 } }).sort({ vipLevel: -1, coins: -1 }).select('username vipLevel coins');
+    res.json(users);
+});
+
+// ----- ط§ظ„ط³ط­ظˆط¨ط§طھ -----
+app.get('/api/admin/withdrawals', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Withdrawal.find().populate('userId', 'username'));
+});
+app.post('/api/admin/withdrawals/:id/approve', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Withdrawal.findByIdAndUpdate(req.params.id, { status: 'completed' });
+    res.json({ success: true });
+});
+
+// ----- ط§ظ„ظˆظƒط§ظ„ط§طھ -----
+app.get('/api/agencies', authenticate, async (req, res) => {
+    const agencies = await Agency.find().populate('ownerId', 'username');
+    res.json({ agencies });
+});
+app.post('/api/agency/create', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { name } = req.body;
+    const existing = await Agency.findOne({ name });
+    if (existing) return res.status(400).json({ error: 'ط§ظ„ط§ط³ظ… ظ…ظˆط¬ظˆط¯' });
+    const agency = new Agency({ name, ownerId: req.user._id });
+    await agency.save();
+    res.json({ success: true, agency });
+});
+
+// ----- ط§ظ„ظپط¹ط§ظ„ظٹط§طھطŒ ط´ط§ط´ط© ط§ظ„ط¸ظ‡ظˆط±طŒ ط§ظ„ط¨ط§ظ†ط±ط§طھ -----
+app.get('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Event.find());
+});
+app.post('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const event = new Event(req.body);
+    await event.save();
+    res.json({ success: true });
+});
+app.delete('/api/admin/events/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Event.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+app.get('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await SplashScreen.find());
+});
+app.post('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const splash = new SplashScreen(req.body);
+    await splash.save();
+    res.json({ success: true });
+});
+app.delete('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await SplashScreen.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+app.get('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Banner.find());
+});
+app.post('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const banner = new Banner(req.body);
+    await banner.save();
+    res.json({ success: true });
+});
+app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Banner.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// ----- ط£ط³ط¹ط§ط± ط§ظ„ط´ط­ظ† ظˆط§ظ„ط¥ط­طµط§ط¦ظٹط§طھ ط§ظ„ظ…طھظ‚ط¯ظ…ط© -----
+app.get('/api/packages', async (req, res) => {
+    res.json({ '1000_coins': { price: 0.10, coins: 1000 } });
+});
+app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json({
+        users: { totalUsers: await User.countDocuments() },
+        vip: { total: await User.countDocuments({ vipLevel: { $gt: 0 } }) }
+    });
+});
+
+// ----- ط¯ط¹ظˆط§طھ Admin -----
+app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { targetUserId } = req.body;
+    const target = await User.findById(targetUserId);
+    if (!target) return res.status(404).json({ error: 'ط§ظ„ظ…ط³طھط®ط¯ظ… ط؛ظٹط± ظ…ظˆط¬ظˆط¯' });
+    if (target.role === 'admin') return res.status(400).json({ error: 'ط§ظ„ظ…ط³طھط®ط¯ظ… ط¨ط§ظ„ظپط¹ظ„ Admin' });
+    target.role = 'admin';
+    const agency = new Agency({ name: `${target.username}_Agency`, ownerId: target._id });
+    await agency.save();
+    target.agencyId = agency._id;
+    await target.save();
+    res.json({ success: true });
+});
+
+// ============ طھط´ط؛ظٹظ„ ط§ظ„ط®ط§ط¯ظ… ظ…ط¹ Socket.IO (WebRTC ظ…طھظƒط§ظ…ظ„) ============
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
-if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exit(1); }
+if (!MONGODB_URI) { console.error('â‌Œ MONGODB_URI is not defined'); process.exit(1); }
 
 mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
 .then(async () => {
-    console.log('✅ MongoDB connected');
+    console.log('âœ… MongoDB connected');
     const existing = await User.findOne({ role: 'super_admin' });
     if (!existing) {
         const hashed = await bcrypt.hash('SuperAdmin123!', 10);
         await User.create({ username: 'SuperAdmin', email: 'superadmin@eaglevoice.com', password: hashed, role: 'super_admin', coins: 999999, diamonds: 999999 });
-        console.log('✅ Super Admin created');
+        console.log('âœ… Super Admin created');
     }
-    const server = app.listen(PORT, '0.0.0.0', () => console.log(`🦅 Server running on port ${PORT}`));
+    const server = app.listen(PORT, '0.0.0.0', () => console.log(`ًں¦… Server running on port ${PORT}`));
 
     const socketIo = require('socket.io');
     const io = socketIo(server, { cors: { origin: "*" }, transports: ['websocket', 'polling'] });
     global.io = io;
     global.onlineUsers = new Map();
-    global.rtcRooms = {};
+    global.rtcRooms = {};   // ظ„طھط®ط²ظٹظ† ط£ط¹ط¶ط§ط، WebRTC ظ„ظƒظ„ ط؛ط±ظپط© (ظ…ظپطھط§ط­: roomId, ظ‚ظٹظ…ط©: ظ…طµظپظˆظپط© socket.id)
 
     io.use((socket, next) => {
         const token = socket.handshake.auth.token;
         if (!token) return next(new Error('No token'));
-        const decoded = verifyAccessToken(token);
+        const decoded = verifyToken(token);
         if (!decoded) return next(new Error('Invalid token'));
         User.findById(decoded.userId).then(user => {
             if (!user || user.isBanned) return next(new Error('Unauthorized'));
@@ -351,13 +444,13 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
     });
 
     io.on('connection', (socket) => {
-        console.log('✅ Socket connected:', socket.user.username);
+        console.log('âœ… Socket connected:', socket.user.username);
         global.onlineUsers.set(socket.user._id.toString(), socket.id);
 
-        // أحداث Socket.IO (كما هي من الكود السابق)
+        // ---- ط¥ط¯ط§ط±ط© ط§ظ„ط؛ط±ظپ (ظ…ط§ظٹظƒط§طھ ظˆط´ط§طھ) ----
         socket.on('create-room', async (data, cb) => {
             const existing = await Room.findOne({ ownerId: socket.user._id });
-            if (existing) return cb({ error: 'لديك غرفة بالفعل' });
+            if (existing) return cb({ error: 'ظ„ط¯ظٹظƒ ط؛ط±ظپط© ط¨ط§ظ„ظپط¹ظ„' });
             const room = new Room({ name: data.name, ownerId: socket.user._id, maxMicrophones: data.maxMicrophones || 5 });
             await room.save();
             socket.join(`room:${room._id}`);
@@ -369,9 +462,9 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
 
         socket.on('join-room', async (data, cb) => {
             const room = await Room.findById(data.roomId);
-            if (!room) return cb({ error: 'الغرفة غير موجودة' });
-            if (!room.isActive) return cb({ error: 'الغرفة محظورة' });
-            if (room.users.some(u => u.userId === socket.user._id)) return cb({ error: 'أنت بالفعل في الغرفة' });
+            if (!room) return cb({ error: 'ط§ظ„ط؛ط±ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©' });
+            if (!room.isActive) return cb({ error: 'ط§ظ„ط؛ط±ظپط© ظ…ط­ط¸ظˆط±ط©' });
+            if (room.users.some(u => u.userId === socket.user._id)) return cb({ error: 'ط£ظ†طھ ط¨ط§ظ„ظپط¹ظ„ ظپظٹ ط§ظ„ط؛ط±ظپط©' });
             socket.join(`room:${room._id}`);
             room.users.push({ userId: socket.user._id, joinedAt: new Date() });
             await room.save();
@@ -388,10 +481,10 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
 
         socket.on('request-mic', async (data, cb) => {
             const room = await Room.findById(data.roomId);
-            if (!room) return cb({ error: 'الغرفة غير موجودة' });
-            if (room.isMicsLocked && room.ownerId !== socket.user._id) return cb({ error: 'الميكروفونات مقفلة' });
-            if (room.currentSpeakers.includes(socket.user._id)) return cb({ error: 'أنت بالفعل تتحدث' });
-            if (room.currentSpeakers.length >= room.maxMicrophones) return cb({ error: 'عدد المايكات ممتلئ' });
+            if (!room) return cb({ error: 'ط§ظ„ط؛ط±ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©' });
+            if (room.isMicsLocked && room.ownerId !== socket.user._id) return cb({ error: 'ط§ظ„ظ…ظٹظƒط±ظˆظپظˆظ†ط§طھ ظ…ظ‚ظپظ„ط©' });
+            if (room.currentSpeakers.includes(socket.user._id)) return cb({ error: 'ط£ظ†طھ ط¨ط§ظ„ظپط¹ظ„ طھطھط­ط¯ط«' });
+            if (room.currentSpeakers.length >= room.maxMicrophones) return cb({ error: 'ط¹ط¯ط¯ ط§ظ„ظ…ط§ظٹظƒط§طھ ظ…ظ…طھظ„ط¦' });
             room.currentSpeakers.push(socket.user._id);
             await room.save();
             io.to(`room:${room._id}`).emit('speaker-joined', { userId: socket.user._id, username: socket.user.username });
@@ -400,10 +493,10 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
 
         socket.on('remove-speaker', async (data, cb) => {
             const room = await Room.findById(data.roomId);
-            if (!room) return cb({ error: 'الغرفة غير موجودة' });
+            if (!room) return cb({ error: 'ط§ظ„ط؛ط±ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©' });
             const isOwner = room.ownerId === socket.user._id;
             const isSelf = data.userId === socket.user._id;
-            if (!isOwner && !isSelf) return cb({ error: 'غير مصرح' });
+            if (!isOwner && !isSelf) return cb({ error: 'ط؛ظٹط± ظ…طµط±ط­' });
             room.currentSpeakers = room.currentSpeakers.filter(id => id !== data.userId);
             await room.save();
             io.to(`room:${room._id}`).emit('speaker-removed', data.userId);
@@ -412,7 +505,7 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
 
         socket.on('lock-mics', async (data, cb) => {
             const room = await Room.findById(data.roomId);
-            if (room.ownerId !== socket.user._id) return cb({ error: 'غير مصرح' });
+            if (room.ownerId !== socket.user._id) return cb({ error: 'ط؛ظٹط± ظ…طµط±ط­' });
             room.isMicsLocked = data.locked;
             await room.save();
             io.to(`room:${room._id}`).emit('mics-locked', data.locked);
@@ -432,11 +525,13 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
         socket.on('leave-room', async (data) => {
             const room = await Room.findById(data.roomId);
             if (room) {
+                // ط¥ط²ط§ظ„ط© ظ…ظ† WebRTC
                 if (global.rtcRooms[data.roomId]) {
                     global.rtcRooms[data.roomId] = global.rtcRooms[data.roomId].filter(id => id !== socket.id);
                     if (global.rtcRooms[data.roomId].length === 0) delete global.rtcRooms[data.roomId];
                 }
                 socket.to(`room:${data.roomId}`).emit('webrtc-peer-left', socket.id);
+
                 room.users = room.users.filter(u => u.userId !== socket.user._id);
                 room.currentSpeakers = room.currentSpeakers.filter(id => id !== socket.user._id);
                 await room.save();
@@ -445,6 +540,7 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
             }
         });
 
+        // ---- WebRTC Signaling (طµظˆطھ ظ…ط¨ط§ط´ط±) ----
         socket.on('webrtc-join', ({ roomId }) => {
             if (!global.rtcRooms[roomId]) global.rtcRooms[roomId] = [];
             if (!global.rtcRooms[roomId].includes(socket.id)) {
@@ -467,7 +563,9 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
             io.to(to).emit('webrtc-candidate', { from: socket.id, candidate });
         });
 
+        // ---- ظ‚ط·ط¹ ط§ظ„ط§طھطµط§ظ„ ----
         socket.on('disconnect', () => {
+            // طھظ†ط¸ظٹظپ WebRTC
             for (let roomId in global.rtcRooms) {
                 if (global.rtcRooms[roomId].includes(socket.id)) {
                     global.rtcRooms[roomId] = global.rtcRooms[roomId].filter(id => id !== socket.id);
@@ -476,8 +574,8 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                 }
             }
             global.onlineUsers.delete(socket.user._id.toString());
-            console.log('❌ Socket disconnected');
+            console.log('â‌Œ Socket disconnected');
         });
     });
 })
-.catch(err => { console.error('❌ MongoDB error:', err.message); process.exit(1); });
+.catch(err => { console.error('â‌Œ MongoDB error:', err.message); process.exit(1); });
