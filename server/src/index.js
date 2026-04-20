@@ -4,11 +4,19 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('client'));
+
+// ✅ خدمة الملفات من الجذر
+app.use(express.static(path.join(__dirname, '../../')));
+
+// ✅ إرسال الملف الرئيسي من الجذر
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../index.html'));
+});
 
 const PORT = process.env.PORT || 3000;
 
