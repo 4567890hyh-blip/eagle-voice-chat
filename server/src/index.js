@@ -201,6 +201,18 @@ const SplashScreenSchema = new mongoose.Schema({
     endDate: Date
 });
 
+// نموذج البانر
+const BannerSchema = new mongoose.Schema({
+    title: String,
+    imageUrl: String,
+    linkUrl: String,
+    position: { type: String, enum: ['home', 'sidebar', 'popup'], default: 'home' },
+    viewCount: { type: Number, default: 0 },
+    clickCount: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now }
+});
+
 // إنشاء النماذج
 const User = mongoose.model('User', UserSchema);
 const Room = mongoose.model('Room', RoomSchema);
@@ -211,6 +223,7 @@ const Game = mongoose.model('Game', GameSchema);
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 const Event = mongoose.model('Event', EventSchema);
 const SplashScreen = mongoose.model('SplashScreen', SplashScreenSchema);
+const Banner = mongoose.model('Banner', BannerSchema);
 
 // ============ API Routes الأساسية ============
 
@@ -262,6 +275,12 @@ app.post('/api/rooms', authenticate, async (req, res) => {
     const room = new Room({ name: req.body.name, ownerId: req.user._id });
     await room.save();
     res.json({ success: true, room });
+});
+
+// جلب جميع الوكالات
+app.get('/api/agencies', authenticate, async (req, res) => {
+    const agencies = await Agency.find().populate('ownerId', 'username');
+    res.json({ agencies });
 });
 
 // ============ Admin Routes الأساسية ============
@@ -330,8 +349,10 @@ app.post('/api/vip/buy', authenticate, async (req, res) => {
 
 // إعطاء VIP لمستخدم
 app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { userId, level, days } = req.body;
-    const user = await User.findById(userId);
+    const { userId, username, level, days } = req.body;
+    let user = null;
+    if (userId) user = await User.findById(userId);
+    else if (username) user = await User.findOne({ username });
     if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
     user.vipLevel = level;
     user.vipExpiry = new Date(Date.now() + (days || 30) * 24 * 60 * 60 * 1000);
@@ -387,7 +408,6 @@ app.post('/api/gift/send', authenticate, async (req, res) => {
         await targetUser.save();
     }
     
-    // إضافة XP
     if (gift.isLuckyGift && isLuckyWin) {
         req.user.xp += giftValue;
         const newLevel = Math.floor(Math.sqrt(req.user.xp / 100)) + 1;
@@ -398,32 +418,6 @@ app.post('/api/gift/send', authenticate, async (req, res) => {
     
     if (roomId && global.io) global.io.to(`room:${roomId}`).emit('gift-received', { from: req.user.username, gift: gift.name, to: targetUser?.username, isLucky: isLuckyWin, value: giftValue });
     res.json({ success: true, isLuckyWin, value: giftValue, newBalance: req.user.coins });
-});
-
-// فتح حقيبة حظ
-app.post('/api/lucky-bag/open', authenticate, async (req, res) => {
-    const { bagId } = req.body;
-    const bag = await LuckyBag.findById(bagId);
-    if (!bag) return res.status(404).json({ error: 'الحقيبة غير موجودة' });
-    if (req.user.coins < bag.price) return res.status(400).json({ error: 'رصيد غير كاف' });
-    
-    req.user.coins -= bag.price;
-    const totalChance = bag.rewards.reduce((sum, r) => sum + r.chance, 0);
-    let random = Math.random() * totalChance;
-    let reward = bag.rewards[0];
-    for (const r of bag.rewards) {
-        if (random <= r.chance) { reward = r; break; }
-        random -= r.chance;
-    }
-    
-    let rewardMessage = '';
-    if (reward.type === 'coins') { req.user.coins += reward.amount; rewardMessage = `🎉 ربحت ${reward.amount} عملة!`; }
-    else if (reward.type === 'diamonds') { req.user.diamonds += reward.amount; rewardMessage = `💎 ربحت ${reward.amount} ألماس!`; }
-    else if (reward.type === 'vip') { req.user.vipLevel = reward.amount; req.user.vipExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); rewardMessage = `👑 ربحت VIP مستوى ${reward.amount}!`; }
-    else if (reward.type === 'gift' && reward.giftId) { const gift = await Gift.findById(reward.giftId); rewardMessage = `🎁 ربحت هدية: ${gift?.name || 'هدية خاصة'}!`; }
-    
-    await req.user.save();
-    res.json({ success: true, reward: rewardMessage, newBalance: req.user.coins, newDiamonds: req.user.diamonds });
 });
 
 // إدارة الهدايا (للمشرف)
@@ -541,6 +535,16 @@ app.post('/api/moderation/check', authenticate, async (req, res) => {
 
 const PACKAGES = { '1000_coins': { price: 0.10, coins: 1000 }, '5000_coins': { price: 0.50, coins: 5000 }, '10000_coins': { price: 1.00, coins: 10000 }, '50000_coins': { price: 4.99, coins: 50000 }, '100000_coins': { price: 9.99, coins: 100000 } };
 
+app.get('/api/packages', async (req, res) => {
+    res.json(PACKAGES);
+});
+
+app.put('/api/admin/packages', authenticate, authorize(['super_admin']), async (req, res) => {
+    const { packages } = req.body;
+    // في الإنتاج، احفظ هذه الإعدادات في قاعدة البيانات
+    res.json({ success: true });
+});
+
 app.post('/api/payment/purchase', authenticate, async (req, res) => {
     const { packageId } = req.body;
     const pkg = PACKAGES[packageId];
@@ -591,6 +595,11 @@ app.get('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), 
     res.json(await Event.find().sort({ createdAt: -1 }));
 });
 
+app.delete('/api/admin/events/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Event.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
 app.get('/api/splash/active', async (req, res) => {
     const now = new Date();
     res.json(await SplashScreen.findOne({ isActive: true, startDate: { $lte: now }, endDate: { $gte: now } }) || null);
@@ -610,20 +619,57 @@ app.put('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_admin'
     res.json({ success: true, splash: await SplashScreen.findByIdAndUpdate(req.params.id, req.body, { new: true }) });
 });
 
+app.delete('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await SplashScreen.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// ============ البانرات ============
+
+app.get('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Banner.find().sort({ createdAt: -1 }));
+});
+
+app.post('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const banner = new Banner(req.body);
+    await banner.save();
+    res.json({ success: true, banner });
+});
+
+app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Banner.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
 // ============ إحصائيات متقدمة ============
 
 app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const now = new Date();
-    const startOfDay = new Date(now.setHours(0, 0, 0, 0));
     const totalUsers = await User.countDocuments();
-    const newUsersToday = await User.countDocuments({ createdAt: { $gte: startOfDay } });
     const vipUsers = await User.countDocuments({ vipLevel: { $gt: 0 } });
     const totalCoins = await User.aggregate([{ $group: { _id: null, total: { $sum: "$coins" } } }]);
     const totalDiamonds = await User.aggregate([{ $group: { _id: null, total: { $sum: "$diamonds" } } }]);
     const totalGiftsSent = await User.aggregate([{ $group: { _id: null, total: { $sum: "$totalGiftsSent" } } }]);
-    const totalWarnings = await User.aggregate([{ $project: { warningsCount: { $size: "$warnings" } } }, { $group: { _id: null, total: { $sum: "$warningsCount" } } }]);
     const bannedUsers = await User.countDocuments({ isBanned: true });
-    res.json({ users: { totalUsers, newUsersToday }, vip: { total: vipUsers }, finance: { totalCoins: totalCoins[0]?.total || 0, totalDiamonds: totalDiamonds[0]?.total || 0 }, gifts: { totalSent: totalGiftsSent[0]?.total || 0 }, moderation: { totalWarnings: totalWarnings[0]?.total || 0, bannedUsers } });
+    res.json({ users: { totalUsers }, vip: { total: vipUsers }, finance: { totalCoins: totalCoins[0]?.total || 0, totalDiamonds: totalDiamonds[0]?.total || 0 }, gifts: { totalSent: totalGiftsSent[0]?.total || 0 }, moderation: { bannedUsers } });
+});
+
+// ============ Invitation Routes ============
+
+app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { targetUserId, targetUsername, createNewAgency } = req.body;
+    let targetUser = null;
+    if (targetUserId) targetUser = await User.findById(targetUserId);
+    else if (targetUsername) targetUser = await User.findOne({ username: targetUsername });
+    if (!targetUser) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    if (targetUser.role === 'admin' || targetUser.role === 'super_admin') return res.status(400).json({ error: 'المستخدم بالفعل Admin' });
+    targetUser.role = 'admin';
+    if (createNewAgency) {
+        const newAgency = new Agency({ name: `${targetUser.username}_Agency`, ownerId: targetUser._id });
+        await newAgency.save();
+        targetUser.agencyId = newAgency._id;
+    }
+    await targetUser.save();
+    res.json({ success: true, message: `تمت ترقية ${targetUser.username} إلى Admin بنجاح` });
 });
 
 // ============ إنشاء Super Admin تلقائياً ============
@@ -634,66 +680,47 @@ const createSuperAdmin = async () => {
         const hashedPassword = await bcrypt.hash('SuperAdmin123!', 10);
         await User.create({ username: 'SuperAdmin', email: 'superadmin@eaglevoice.com', password: hashedPassword, role: 'super_admin', coins: 999999, diamonds: 999999 });
         console.log('✅ Super Admin created: superadmin@eaglevoice.com / SuperAdmin123!');
-    } else {
-        console.log('✅ Super Admin already exists');
     }
 };
 
 // ============ تشغيل الخادم ============
 
 const MONGODB_URI = process.env.MONGODB_URI;
-if (!MONGODB_URI) {
-    console.error('❌ MONGODB_URI is not defined in environment variables');
-    process.exit(1);
-}
+if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exit(1); }
 
 mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
     .then(async () => {
         console.log('✅ MongoDB connected successfully');
         await createSuperAdmin();
 
-        // بدء خادم Express
         const server = app.listen(PORT, '0.0.0.0', () => {
             console.log(`🦅 Eagle Voice Chat running on port ${PORT}`);
-            console.log(`📱 User App: https://your-app.onrender.com/`);
-            console.log(`🖥️  Admin Panel: https://your-app.onrender.com/admin`);
+            console.log(`📱 App: https://your-app.onrender.com`);
+            console.log(`🖥️ Admin: https://your-app.onrender.com/admin`);
         });
 
-        // ============ إعداد Socket.IO ============
+        // Socket.IO
         const socketIo = require('socket.io');
-        const io = socketIo(server, {
-            cors: { origin: "*" },
-            transports: ['websocket', 'polling']
-        });
-
-        // حفظ io في المتغير العام للاستخدام في routes
+        const io = socketIo(server, { cors: { origin: "*" }, transports: ['websocket', 'polling'] });
         global.io = io;
         global.onlineUsers = new Map();
 
-        // ميدلوير Socket.IO للمصادقة
         io.use(async (socket, next) => {
             try {
                 const token = socket.handshake.auth.token;
                 if (!token) return next(new Error('No token'));
-
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
                 const user = await User.findById(decoded.userId);
                 if (!user || user.isBanned) return next(new Error('Unauthorized'));
-
                 socket.user = user;
                 next();
-            } catch (err) {
-                console.error('Socket auth error:', err.message);
-                next(new Error('Authentication failed'));
-            }
+            } catch (err) { next(new Error('Auth failed')); }
         });
 
-        // أحداث Socket.IO
         io.on('connection', (socket) => {
-            console.log('✅ Socket connected:', socket.user.username);
+            console.log('✅ Socket:', socket.user.username);
             global.onlineUsers.set(socket.user._id.toString(), socket.id);
 
-            // إنشاء غرفة
             socket.on('create-room', async (data, callback) => {
                 try {
                     const room = new Room({ name: data.name, ownerId: socket.user._id });
@@ -701,65 +728,37 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                     socket.join(`room:${room._id}`);
                     callback({ success: true, room });
                     io.emit('rooms-updated');
-                } catch (error) {
-                    callback({ error: error.message });
-                }
+                } catch (error) { callback({ error: error.message }); }
             });
 
-            // الانضمام إلى غرفة
             socket.on('join-room', async (data, callback) => {
                 try {
                     socket.join(`room:${data.roomId}`);
                     callback({ success: true });
                     socket.to(`room:${data.roomId}`).emit('user-joined', socket.user.username);
-                } catch (error) {
-                    callback({ error: error.message });
-                }
+                } catch (error) { callback({ error: error.message }); }
             });
 
-            // إرسال رسالة
             socket.on('send-message', (data) => {
-                io.to(`room:${data.roomId}`).emit('new-message', {
-                    username: socket.user.username,
-                    message: data.message,
-                    time: new Date()
-                });
+                io.to(`room:${data.roomId}`).emit('new-message', { username: socket.user.username, message: data.message, time: new Date() });
             });
 
-            // إشعار الهدية
             socket.on('send-gift-notification', (data) => {
-                io.to(`room:${data.roomId}`).emit('gift-notification', {
-                    from: socket.user.username,
-                    gift: data.giftName,
-                    to: data.targetUsername
-                });
+                io.to(`room:${data.roomId}`).emit('gift-notification', { from: socket.user.username, gift: data.giftName, to: data.targetUsername });
             });
 
-            // إعلان ترقية VIP
             socket.on('vip-upgrade', (data) => {
-                io.emit('vip-announcement', {
-                    username: socket.user.username,
-                    newLevel: data.level
-                });
+                io.emit('vip-announcement', { username: socket.user.username, newLevel: data.level });
             });
 
-            // إعلان فوز في لعبة
             socket.on('game-win', (data) => {
-                io.to(`room:${data.roomId}`).emit('game-announcement', {
-                    username: socket.user.username,
-                    game: data.gameName,
-                    winAmount: data.winAmount
-                });
+                io.to(`room:${data.roomId}`).emit('game-announcement', { username: socket.user.username, game: data.gameName, winAmount: data.winAmount });
             });
 
-            // قطع الاتصال
             socket.on('disconnect', () => {
                 global.onlineUsers.delete(socket.user._id.toString());
                 console.log('❌ Socket disconnected:', socket.user.username);
             });
         });
     })
-    .catch(err => {
-        console.error('❌ MongoDB connection error:', err.message);
-        process.exit(1);
-    });
+    .catch(err => { console.error('❌ MongoDB error:', err.message); process.exit(1); });
