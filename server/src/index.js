@@ -15,18 +15,18 @@ app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
 mongoose.set('strictQuery', false);
 
-// ============ إعداد رفع الملفات ============
+// إعداد رفع الملفات
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, path.join(__dirname, '../../uploads')),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
 
-// ============ نظام التوكن ============
+// نظام التوكن
 const generateToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 const verifyToken = (token) => { try { return jwt.verify(token, process.env.JWT_SECRET); } catch { return null; } };
 
-// ============ Middleware ============
+// Middleware
 const authenticate = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];
@@ -57,8 +57,8 @@ const UserSchema = new mongoose.Schema({
     password: { type: String, required: true },
     phone: String,
     avatar: { type: String, default: '/uploads/default-avatar.png' },
-    frame: { type: String, default: '' },      // إطار الصورة (رابط أو اسم)
-    entryEffect: { type: String, default: 'default' }, // تأثير دخول (مثل "طيران"، "ورود"، إلخ)
+    frame: { type: String, default: '' },
+    entryEffect: { type: String, default: 'default' },
     role: { type: String, enum: ['user', 'admin', 'super_admin'], default: 'user' },
     coins: { type: Number, default: 0 },
     diamonds: { type: Number, default: 0 },
@@ -84,9 +84,9 @@ const RoomSchema = new mongoose.Schema({
     name: { type: String, required: true },
     ownerId: { type: String, required: true },
     users: [{ userId: String, joinedAt: Date, isSpeaking: Boolean }],
-    maxMicrophones: { type: Number, default: 5 },      // عدد المايكات المتاحة
-    currentSpeakers: [{ type: String }],              // قائمة بأيدي المستخدمين الذين يرفعون المايك
-    isMicsLocked: { type: Boolean, default: false },  // قفل المايكات من قبل صاحب الغرفة
+    maxMicrophones: { type: Number, default: 5 },
+    currentSpeakers: [{ type: String }],
+    isMicsLocked: { type: Boolean, default: false },
     imageUrl: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now }
@@ -158,7 +158,6 @@ const Banner = mongoose.model('Banner', BannerSchema);
 
 // ============ Routes API ============
 
-// تسجيل / دخول / معلومات المستخدم
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, email, phone, deviceId } = req.body;
@@ -195,7 +194,6 @@ app.get('/api/user', authenticate, async (req, res) => {
     res.json({ user: req.user });
 });
 
-// رفع صورة بروفايل
 app.post('/api/upload-avatar', authenticate, upload.single('avatar'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'لم يتم رفع ملف' });
     req.user.avatar = '/uploads/' + req.file.filename;
@@ -203,9 +201,8 @@ app.post('/api/upload-avatar', authenticate, upload.single('avatar'), async (req
     res.json({ success: true, avatar: req.user.avatar });
 });
 
-// شراء إطار أو تأثير دخول
 app.post('/api/buy-item', authenticate, async (req, res) => {
-    const { itemId, type } = req.body; // type: 'frame' أو 'entry_effect'
+    const { itemId, type } = req.body;
     const gift = await Gift.findOne({ _id: itemId, type, isActive: true });
     if (!gift) return res.status(404).json({ error: 'العنصر غير موجود' });
     if (req.user.coins < gift.price) return res.status(400).json({ error: 'رصيد غير كاف' });
@@ -216,7 +213,7 @@ app.post('/api/buy-item', authenticate, async (req, res) => {
     res.json({ success: true, frame: req.user.frame, entryEffect: req.user.entryEffect, newBalance: req.user.coins });
 });
 
-// ============ إدارة المستخدمين (Admin) ============
+// Admin
 app.get('/api/admin/users', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { search } = req.query;
     let query = {};
@@ -248,13 +245,166 @@ app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), a
     res.json({ stats: { totalUsers, onlineUsers: global.onlineUsers?.size || 0, totalCoins } });
 });
 
-// ============ الغرف (API + Socket.IO) ============
+// Gifts management
+app.get('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Gift.find());
+});
+
+app.post('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const gift = new Gift(req.body);
+    await gift.save();
+    res.json({ success: true, gift });
+});
+
+app.delete('/api/admin/gifts/:giftId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Gift.findByIdAndDelete(req.params.giftId);
+    res.json({ success: true });
+});
+
+// Rooms
 app.get('/api/rooms', async (req, res) => {
     const rooms = await Room.find({ isActive: true }).sort({ createdAt: -1 });
     res.json(rooms);
 });
 
-// ============ تشغيل الخادم ============
+app.get('/api/admin/rooms', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const rooms = await Room.find().sort({ createdAt: -1 });
+    res.json({ rooms });
+});
+
+app.put('/api/admin/rooms/:roomId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { name, imageUrl, isActive } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (imageUrl !== undefined) update.imageUrl = imageUrl;
+    if (isActive !== undefined) update.isActive = isActive;
+    const room = await Room.findByIdAndUpdate(req.params.roomId, update, { new: true });
+    res.json({ success: true, room });
+});
+
+app.post('/api/admin/rooms/:roomId/ban', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const room = await Room.findByIdAndUpdate(req.params.roomId, { isActive: false }, { new: true });
+    res.json({ success: true, message: `تم حظر الغرفة ${room.name}` });
+});
+
+app.post('/api/admin/rooms/:roomId/unban', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const room = await Room.findByIdAndUpdate(req.params.roomId, { isActive: true }, { new: true });
+    res.json({ success: true, message: `تم فك حظر الغرفة ${room.name}` });
+});
+
+app.delete('/api/admin/rooms/:roomId', authenticate, authorize(['super_admin']), async (req, res) => {
+    const room = await Room.findByIdAndDelete(req.params.roomId);
+    res.json({ success: true, message: `تم حذف الغرفة ${room.name}` });
+});
+
+// VIP
+app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, level, days } = req.body;
+    const user = await User.findByIdAndUpdate(userId, { vipLevel: level, vipExpiry: new Date(Date.now() + (days || 30) * 24 * 60 * 60 * 1000) }, { new: true });
+    res.json({ success: true, message: `تم ترقية ${user.username} إلى VIP ${level}` });
+});
+
+app.post('/api/admin/remove-vip/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await User.findByIdAndUpdate(req.params.userId, { vipLevel: 0, vipExpiry: null });
+    res.json({ success: true });
+});
+
+app.get('/api/vip/ranking', async (req, res) => {
+    const users = await User.find({ vipLevel: { $gt: 0 } }).sort({ vipLevel: -1, coins: -1 }).select('username vipLevel coins');
+    res.json(users);
+});
+
+// Withdrawals
+app.get('/api/admin/withdrawals', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Withdrawal.find().populate('userId', 'username'));
+});
+
+app.post('/api/admin/withdrawals/:id/approve', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Withdrawal.findByIdAndUpdate(req.params.id, { status: 'completed' });
+    res.json({ success: true });
+});
+
+// Agencies
+app.get('/api/agencies', authenticate, async (req, res) => {
+    const agencies = await Agency.find().populate('ownerId', 'username');
+    res.json({ agencies });
+});
+
+app.post('/api/agency/create', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { name } = req.body;
+    const existing = await Agency.findOne({ name });
+    if (existing) return res.status(400).json({ error: 'الاسم موجود' });
+    const agency = new Agency({ name, ownerId: req.user._id });
+    await agency.save();
+    res.json({ success: true, agency });
+});
+
+// Events, Splash, Banners (basic)
+app.get('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Event.find());
+});
+app.post('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const event = new Event(req.body);
+    await event.save();
+    res.json({ success: true });
+});
+app.delete('/api/admin/events/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Event.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+app.get('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await SplashScreen.find());
+});
+app.post('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const splash = new SplashScreen(req.body);
+    await splash.save();
+    res.json({ success: true });
+});
+app.delete('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await SplashScreen.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+app.get('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json(await Banner.find());
+});
+app.post('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const banner = new Banner(req.body);
+    await banner.save();
+    res.json({ success: true });
+});
+app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    await Banner.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+app.get('/api/packages', async (req, res) => {
+    res.json({ '1000_coins': { price: 0.10, coins: 1000 } });
+});
+
+app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    res.json({
+        users: { totalUsers: await User.countDocuments() },
+        vip: { total: await User.countDocuments({ vipLevel: { $gt: 0 } }) }
+    });
+});
+
+// Invitation
+app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { targetUserId } = req.body;
+    const target = await User.findById(targetUserId);
+    if (!target) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    if (target.role === 'admin') return res.status(400).json({ error: 'المستخدم بالفعل Admin' });
+    target.role = 'admin';
+    const agency = new Agency({ name: `${target.username}_Agency`, ownerId: target._id });
+    await agency.save();
+    target.agencyId = agency._id;
+    await target.save();
+    res.json({ success: true });
+});
+
+// ============ تشغيل الخادم مع Socket.IO ============
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exit(1); }
@@ -262,7 +412,6 @@ if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exi
 mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
     .then(async () => {
         console.log('✅ MongoDB connected');
-        // إنشاء Super Admin تلقائياً
         const existing = await User.findOne({ role: 'super_admin' });
         if (!existing) {
             const hashed = await bcrypt.hash('SuperAdmin123!', 10);
@@ -270,7 +419,7 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
             console.log('✅ Super Admin created');
         }
         const server = app.listen(PORT, '0.0.0.0', () => console.log(`🦅 Server running on port ${PORT}`));
-        
+
         const socketIo = require('socket.io');
         const io = socketIo(server, { cors: { origin: "*" }, transports: ['websocket', 'polling'] });
         global.io = io;
@@ -292,7 +441,6 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
             console.log('✅ Socket connected:', socket.user.username);
             global.onlineUsers.set(socket.user._id.toString(), socket.id);
 
-            // إنشاء غرفة (بحد أقصى غرفة واحدة لكل مستخدم)
             socket.on('create-room', async (data, cb) => {
                 const existing = await Room.findOne({ ownerId: socket.user._id });
                 if (existing) return cb({ error: 'لديك غرفة بالفعل' });
@@ -305,7 +453,6 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                 io.emit('rooms-updated');
             });
 
-            // الانضمام إلى غرفة + إرسال تأثير الدخول
             socket.on('join-room', async (data, cb) => {
                 const room = await Room.findById(data.roomId);
                 if (!room) return cb({ error: 'الغرفة غير موجودة' });
@@ -314,26 +461,21 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                 socket.join(`room:${room._id}`);
                 room.users.push({ userId: socket.user._id, joinedAt: new Date() });
                 await room.save();
-
-                // إشعار الدخول مع تأثير
                 io.to(`room:${room._id}`).emit('user-joined', {
                     userId: socket.user._id,
                     username: socket.user.username,
                     avatar: socket.user.avatar,
                     frame: socket.user.frame,
-                    entryEffect: socket.user.entryEffect,
-                    entrySound: '/sounds/enter.mp3'
+                    entryEffect: socket.user.entryEffect
                 });
                 cb({ success: true, room, user: { username: socket.user.username, avatar: socket.user.avatar, frame: socket.user.frame } });
-                // إرسال قائمة المتحدثين الحالية للمستخدم الجديد
                 io.to(`room:${room._id}`).emit('speakers-list', { speakers: room.currentSpeakers });
             });
 
-            // رفع المايك (طلب التحدث)
             socket.on('request-mic', async (data, cb) => {
                 const room = await Room.findById(data.roomId);
                 if (!room) return cb({ error: 'الغرفة غير موجودة' });
-                if (room.isMicsLocked && room.ownerId !== socket.user._id) return cb({ error: 'الميكروفونات مقفلة من قبل صاحب الغرفة' });
+                if (room.isMicsLocked && room.ownerId !== socket.user._id) return cb({ error: 'الميكروفونات مقفلة' });
                 if (room.currentSpeakers.includes(socket.user._id)) return cb({ error: 'أنت بالفعل تتحدث' });
                 if (room.currentSpeakers.length >= room.maxMicrophones) return cb({ error: 'عدد المايكات ممتلئ' });
                 room.currentSpeakers.push(socket.user._id);
@@ -342,7 +484,6 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                 cb({ success: true });
             });
 
-            // إنزال المايك (للمستخدم نفسه أو للمشرف)
             socket.on('remove-speaker', async (data, cb) => {
                 const room = await Room.findById(data.roomId);
                 if (!room) return cb({ error: 'الغرفة غير موجودة' });
@@ -355,7 +496,6 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                 cb({ success: true });
             });
 
-            // قفل/فتح المايكات (لصاحب الغرفة فقط)
             socket.on('lock-mics', async (data, cb) => {
                 const room = await Room.findById(data.roomId);
                 if (room.ownerId !== socket.user._id) return cb({ error: 'غير مصرح' });
@@ -365,7 +505,6 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                 cb({ success: true });
             });
 
-            // إرسال رسالة نصية
             socket.on('send-message', (data) => {
                 io.to(`room:${data.roomId}`).emit('new-message', {
                     username: socket.user.username,
@@ -376,7 +515,6 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                 });
             });
 
-            // مغادرة الغرفة
             socket.on('leave-room', async (data) => {
                 const room = await Room.findById(data.roomId);
                 if (room) {
