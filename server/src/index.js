@@ -10,6 +10,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ============ CORS Headers إضافية ============
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+
 // ============ Middleware ============
 const authenticate = async (req, res, next) => {
     try {
@@ -46,28 +55,15 @@ app.get('/admin', (req, res) => {
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../../index.html'));
 });
-
-// رابط سريع لترقية المستخدم
-app.get('/make-me-super', async (req, res) => {
-    try {
-        const { username } = req.query;
-        if (!username) return res.send('❌ أضف ?username=اسم_المستخدم');
-        const UserModel = mongoose.model('User');
-        const user = await UserModel.findOne({ username });
-        if (!user) return res.send('❌ المستخدم غير موجود');
-        user.role = 'super_admin';
-        await user.save();
-        res.send(`✅ تم ترقية ${username} إلى Super Admin بنجاح!`);
-    } catch (error) {
-        res.send('❌ خطأ: ' + error.message);
-    }
+app.get('/api/test', (req, res) => {
+    res.json({ status: 'ok', message: 'Server is working!' });
 });
 
 const PORT = process.env.PORT || 3000;
 
 // ============ النماذج (Models) ============
 
-// نموذج المستخدم الأساسي
+// نموذج المستخدم
 const UserSchema = new mongoose.Schema({
     username: { type: String, unique: true, required: true },
     email: { type: String, unique: true, sparse: true },
@@ -92,23 +88,10 @@ const UserSchema = new mongoose.Schema({
     banReason: String,
     bannedUntil: Date,
     mutedUntil: Date,
-    warnings: [{
-        reason: String,
-        date: Date,
-        moderator: String,
-        action: String
-    }],
+    warnings: [{ reason: String, date: Date, moderator: String, action: String }],
     riskScore: { type: Number, default: 0 },
     agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency' },
-    transactions: [{
-        type: String,
-        amount: Number,
-        coins: Number,
-        diamonds: Number,
-        description: String,
-        date: Date,
-        status: String
-    }],
+    transactions: [{ type: String, amount: Number, coins: Number, diamonds: Number, description: String, date: Date, status: String }],
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -127,7 +110,7 @@ const AgencySchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج الهدية المتقدم
+// نموذج الهدية
 const GiftSchema = new mongoose.Schema({
     name: { type: String, required: true },
     description: String,
@@ -142,20 +125,6 @@ const GiftSchema = new mongoose.Schema({
     totalSent: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now }
-});
-
-// نموذج حقيبة الحظ
-const LuckyBagSchema = new mongoose.Schema({
-    name: String,
-    price: { type: Number, required: true },
-    image: String,
-    rewards: [{
-        type: { type: String, enum: ['coins', 'diamonds', 'vip', 'gift'] },
-        amount: Number,
-        giftId: { type: mongoose.Schema.Types.ObjectId, ref: 'Gift' },
-        chance: Number
-    }],
-    isActive: Boolean
 });
 
 // نموذج اللعبة
@@ -218,7 +187,6 @@ const User = mongoose.model('User', UserSchema);
 const Room = mongoose.model('Room', RoomSchema);
 const Agency = mongoose.model('Agency', AgencySchema);
 const Gift = mongoose.model('Gift', GiftSchema);
-const LuckyBag = mongoose.model('LuckyBag', LuckyBagSchema);
 const Game = mongoose.model('Game', GameSchema);
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 const Event = mongoose.model('Event', EventSchema);
@@ -227,7 +195,6 @@ const Banner = mongoose.model('Banner', BannerSchema);
 
 // ============ API Routes الأساسية ============
 
-// تسجيل مستخدم جديد
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, email } = req.body;
@@ -243,7 +210,6 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// تسجيل الدخول
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -259,33 +225,28 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// جلب معلومات المستخدم الحالي
 app.get('/api/user', authenticate, async (req, res) => {
     res.json({ user: req.user });
 });
 
-// جلب جميع الغرف
 app.get('/api/rooms', async (req, res) => {
     const rooms = await Room.find().sort({ createdAt: -1 });
     res.json(rooms);
 });
 
-// إنشاء غرفة جديدة
 app.post('/api/rooms', authenticate, async (req, res) => {
     const room = new Room({ name: req.body.name, ownerId: req.user._id });
     await room.save();
     res.json({ success: true, room });
 });
 
-// جلب جميع الوكالات
 app.get('/api/agencies', authenticate, async (req, res) => {
     const agencies = await Agency.find().populate('ownerId', 'username');
     res.json({ agencies });
 });
 
-// ============ Admin Routes الأساسية ============
+// ============ Admin Routes ============
 
-// جلب جميع المستخدمين
 app.get('/api/admin/users', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { search, role } = req.query;
     let query = {};
@@ -295,20 +256,17 @@ app.get('/api/admin/users', authenticate, authorize(['admin', 'super_admin']), a
     res.json({ users });
 });
 
-// حظر مستخدم
 app.post('/api/admin/ban-user', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { userId, reason } = req.body;
     const user = await User.findByIdAndUpdate(userId, { isBanned: true, banReason: reason }, { new: true });
     res.json({ success: true, message: `تم حظر ${user.username}` });
 });
 
-// إلغاء حظر مستخدم
 app.post('/api/admin/unban-user/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const user = await User.findByIdAndUpdate(req.params.userId, { isBanned: false, banReason: null }, { new: true });
     res.json({ success: true, message: `تم فك الحظر عن ${user.username}` });
 });
 
-// إحصائيات Dashboard
 app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const totalUsers = await User.countDocuments();
     const totalCoins = await User.aggregate([{ $group: { _id: null, total: { $sum: "$coins" } } }]);
@@ -318,7 +276,6 @@ app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), a
 
 // ============ Agency Routes ============
 
-// إنشاء وكالة
 app.post('/api/agency/create', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { name } = req.body;
     const existingAgency = await Agency.findOne({ name });
@@ -328,12 +285,11 @@ app.post('/api/agency/create', authenticate, authorize(['admin', 'super_admin'])
     res.json({ success: true, agency });
 });
 
-// ============ نظام VIP ============
+// ============ VIP System ============
 
 const VIP_PRICES = { 1: 100, 2: 300, 3: 600, 4: 1000, 5: 2000 };
 const VIP_DAYS = { 1: 30, 2: 30, 3: 30, 4: 30, 5: 30 };
 
-// شراء VIP
 app.post('/api/vip/buy', authenticate, async (req, res) => {
     const { level } = req.body;
     const price = VIP_PRICES[level];
@@ -347,7 +303,6 @@ app.post('/api/vip/buy', authenticate, async (req, res) => {
     res.json({ success: true, vipLevel: level, expiry: req.user.vipExpiry, benefits: req.user.vipBenefits });
 });
 
-// إعطاء VIP لمستخدم
 app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { userId, username, level, days } = req.body;
     let user = null;
@@ -361,7 +316,6 @@ app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']
     res.json({ success: true, message: `تم ترقية ${user.username} إلى VIP ${level}` });
 });
 
-// سحب VIP
 app.post('/api/admin/remove-vip/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
@@ -372,15 +326,13 @@ app.post('/api/admin/remove-vip/:userId', authenticate, authorize(['admin', 'sup
     res.json({ success: true, message: `تم سحب VIP من ${user.username}` });
 });
 
-// ترتيب VIP العالمي
 app.get('/api/vip/ranking', async (req, res) => {
     const vipUsers = await User.find({ vipLevel: { $gt: 0 } }).sort({ vipLevel: -1, coins: -1 }).limit(100).select('username vipLevel coins');
     res.json(vipUsers);
 });
 
-// ============ نظام الهدايا المتقدم ============
+// ============ Gifts System ============
 
-// إرسال هدية
 app.post('/api/gift/send', authenticate, async (req, res) => {
     const { giftId, targetUserId, roomId } = req.body;
     const gift = await Gift.findById(giftId);
@@ -420,24 +372,26 @@ app.post('/api/gift/send', authenticate, async (req, res) => {
     res.json({ success: true, isLuckyWin, value: giftValue, newBalance: req.user.coins });
 });
 
-// إدارة الهدايا (للمشرف)
 app.post('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const gift = new Gift(req.body);
     await gift.save();
     res.json({ success: true, gift });
 });
+
 app.get('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Gift.find());
 });
+
 app.put('/api/admin/gifts/:giftId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json({ success: true, gift: await Gift.findByIdAndUpdate(req.params.giftId, req.body, { new: true }) });
 });
+
 app.delete('/api/admin/gifts/:giftId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     await Gift.findByIdAndDelete(req.params.giftId);
     res.json({ success: true });
 });
 
-// ============ نظام الألعاب مع AI ============
+// ============ Games System ============
 
 const userLossStreak = new Map();
 
@@ -475,20 +429,21 @@ app.post('/api/game/play', authenticate, async (req, res) => {
     }
 });
 
-// إدارة الألعاب
 app.post('/api/admin/games', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const game = new Game(req.body);
     await game.save();
     res.json({ success: true, game });
 });
+
 app.get('/api/admin/games', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Game.find());
 });
+
 app.put('/api/admin/games/:gameId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json({ success: true, game: await Game.findByIdAndUpdate(req.params.gameId, req.body, { new: true }) });
 });
 
-// ============ نظام المخالفات والتحذيرات ============
+// ============ Warnings System ============
 
 app.post('/api/admin/warnings/add', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { userId, reason, action } = req.body;
@@ -516,7 +471,6 @@ app.delete('/api/admin/warnings/:userId/:warningIndex', authenticate, authorize(
     res.json({ success: true, riskScore: user.riskScore });
 });
 
-// AI Moderation
 app.post('/api/moderation/check', authenticate, async (req, res) => {
     const { message } = req.body;
     const bannedWords = ['كلمة ممنوعة', 'سيء', 'بذيء'];
@@ -531,7 +485,7 @@ app.post('/api/moderation/check', authenticate, async (req, res) => {
     res.json({ blocked: false });
 });
 
-// ============ نظام الدفع ============
+// ============ Payments System ============
 
 const PACKAGES = { '1000_coins': { price: 0.10, coins: 1000 }, '5000_coins': { price: 0.50, coins: 5000 }, '10000_coins': { price: 1.00, coins: 10000 }, '50000_coins': { price: 4.99, coins: 50000 }, '100000_coins': { price: 9.99, coins: 100000 } };
 
@@ -540,8 +494,6 @@ app.get('/api/packages', async (req, res) => {
 });
 
 app.put('/api/admin/packages', authenticate, authorize(['super_admin']), async (req, res) => {
-    const { packages } = req.body;
-    // في الإنتاج، احفظ هذه الإعدادات في قاعدة البيانات
     res.json({ success: true });
 });
 
@@ -578,7 +530,7 @@ app.post('/api/admin/withdrawals/:id/approve', authenticate, authorize(['admin',
     res.json({ success: true, message: 'تمت الموافقة على طلب السحب' });
 });
 
-// ============ الفعاليات وشاشة الظهور ============
+// ============ Events & Splash Screen & Banners ============
 
 app.get('/api/events/active', async (req, res) => {
     const now = new Date();
@@ -624,8 +576,6 @@ app.delete('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_adm
     res.json({ success: true });
 });
 
-// ============ البانرات ============
-
 app.get('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Banner.find().sort({ createdAt: -1 }));
 });
@@ -641,7 +591,7 @@ app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_ad
     res.json({ success: true });
 });
 
-// ============ إحصائيات متقدمة ============
+// ============ Advanced Stats ============
 
 app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const totalUsers = await User.countDocuments();
@@ -672,31 +622,29 @@ app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super
     res.json({ success: true, message: `تمت ترقية ${targetUser.username} إلى Admin بنجاح` });
 });
 
-// ============ إنشاء Super Admin تلقائياً ============
+// ============ Create Super Admin ============
 
 const createSuperAdmin = async () => {
     const existing = await User.findOne({ role: 'super_admin' });
     if (!existing) {
         const hashedPassword = await bcrypt.hash('SuperAdmin123!', 10);
         await User.create({ username: 'SuperAdmin', email: 'superadmin@eaglevoice.com', password: hashedPassword, role: 'super_admin', coins: 999999, diamonds: 999999 });
-        console.log('✅ Super Admin created: superadmin@eaglevoice.com / SuperAdmin123!');
+        console.log('✅ Super Admin created');
     }
 };
 
-// ============ تشغيل الخادم ============
+// ============ Start Server ============
 
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exit(1); }
 
 mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
     .then(async () => {
-        console.log('✅ MongoDB connected successfully');
+        console.log('✅ MongoDB connected');
         await createSuperAdmin();
 
         const server = app.listen(PORT, '0.0.0.0', () => {
             console.log(`🦅 Eagle Voice Chat running on port ${PORT}`);
-            console.log(`📱 App: https://your-app.onrender.com`);
-            console.log(`🖥️ Admin: https://your-app.onrender.com/admin`);
         });
 
         // Socket.IO
@@ -741,18 +689,6 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
 
             socket.on('send-message', (data) => {
                 io.to(`room:${data.roomId}`).emit('new-message', { username: socket.user.username, message: data.message, time: new Date() });
-            });
-
-            socket.on('send-gift-notification', (data) => {
-                io.to(`room:${data.roomId}`).emit('gift-notification', { from: socket.user.username, gift: data.giftName, to: data.targetUsername });
-            });
-
-            socket.on('vip-upgrade', (data) => {
-                io.emit('vip-announcement', { username: socket.user.username, newLevel: data.level });
-            });
-
-            socket.on('game-win', (data) => {
-                io.to(`room:${data.roomId}`).emit('game-announcement', { username: socket.user.username, game: data.gameName, winAmount: data.winAmount });
             });
 
             socket.on('disconnect', () => {
