@@ -61,6 +61,7 @@
 <div class="token-status">
     🔑 <span id="tokenStatusText">جاري التحقق...</span>
     <button onclick="refreshToken()">🔄 تحديث التوكن</button>
+    <button onclick="testAPI()" style="background:#17a2b8; margin-left:5px;">🧪 اختبار API</button>
 </div>
 <div class="sidebar">
     <div class="sidebar-header"><h2>🦅 Eagle Admin</h2></div>
@@ -105,7 +106,7 @@
     <!-- Rooms -->
     <div id="rooms-section" style="display:none">
         <div class="card"><h3>🏠 إدارة الغرف</h3><div class="flex"><button class="btn btn-info" onclick="loadRoomsList()">🔄 تحديث القائمة</button></div>
-        <div style="overflow-x:auto;"><table class="data-table" id="roomsTable"><thead><tr><th>الاسم</th><th>المالك</th><th>المستخدمين</th><th>الصورة</th><th>الحالة</th><th>عدد المايكات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></td></thead><tbody><td><td colspan="8" class="loading">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
+        <div style="overflow-x:auto;"><table class="data-table" id="roomsTable"><thead><tr><th>الاسم</th><th>المالك</th><th>المستخدمين</th><th>الصورة</th><th>الحالة</th><th>عدد المايكات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="8" class="loading">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
     </div>
 
     <!-- VIP -->
@@ -166,13 +167,45 @@
         } catch(e) { span.innerHTML = '⚠️ تالف'; span.className = 'warning'; return false; }
     }
     function refreshToken() { if (confirm('تسجيل الخروج وإعادة التوجيه؟')) { localStorage.removeItem('token'); window.location.href = '/'; } }
+
     async function fetchAPI(url, options = {}) {
-        if (!checkTokenStatus()) { document.getElementById('statsContainer').innerHTML = '<div class="error">⚠️ التوكن منتهي</div>'; return null; }
+        if (!checkTokenStatus()) {
+            alert('⚠️ التوكن منتهي أو غير صالح. اضغط "تحديث التوكن"');
+            return null;
+        }
         try {
-            const res = await fetch(`${API_URL}${url}`, { ...options, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...options.headers } });
-            if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/'; return null; }
-            return await res.json();
-        } catch(e) { console.error(e); return null; }
+            const res = await fetch(`${API_URL}${url}`, {
+                ...options,
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...options.headers }
+            });
+            if (res.status === 401) {
+                alert('❌ جلسة منتهية. سيتم إعادة توجيهك لتسجيل الدخول.');
+                localStorage.removeItem('token');
+                window.location.href = '/';
+                return null;
+            }
+            const data = await res.json();
+            if (!res.ok) {
+                console.error(`API error ${url}:`, data);
+                alert(`خطأ ${res.status}: ${data.error || 'فشل الطلب'}`);
+                return null;
+            }
+            return data;
+        } catch(e) {
+            console.error(`Fetch error ${url}:`, e);
+            alert(`خطأ في الاتصال: ${e.message}`);
+            return null;
+        }
+    }
+
+    async function testAPI() {
+        const testUrl = '/api/admin/stats';
+        const data = await fetchAPI(testUrl);
+        if (data) {
+            alert(`✅ API يعمل\nالإحصائيات: ${JSON.stringify(data.stats || data).substring(0, 200)}`);
+        } else {
+            alert('❌ فشل الاتصال بواجهة API');
+        }
     }
 
     async function loadUserInfo() { const data = await fetchAPI('/api/user'); if (data?.user) { currentUser = data.user; document.getElementById('sidebarUsername').innerText = currentUser.username; document.getElementById('sidebarRole').innerHTML = currentUser.role === 'super_admin' ? '<span class="badge badge-super">سوبر ادمن</span>' : (currentUser.role === 'admin' ? '<span class="badge badge-admin">ادمن</span>' : 'مستخدم'); } }
@@ -242,8 +275,8 @@
         <td>${r.currentSpeakers?.length||0}/${r.maxMicrophones||5}</td>
         <td>${new Date(r.createdAt).toLocaleDateString()}</td>
         <td><button class="btn btn-sm btn-primary" onclick="editRoomName('${r._id}','${r.name}')">✏️ اسم</button> <button class="btn btn-sm btn-info" onclick="editRoomImage('${r._id}')">🖼️ صورة</button> ${r.isActive ? `<button class="btn btn-sm btn-danger" onclick="banRoom('${r._id}','${r.name}')">🔨 حظر</button>` : `<button class="btn btn-sm btn-success" onclick="unbanRoom('${r._id}','${r.name}')">🔓 فك الحظر</button>`} <button class="btn btn-sm btn-danger" onclick="deleteRoom('${r._id}','${r.name}')">🗑️ حذف</button></td>
-    </table>`; }
-        document.querySelector('#roomsTable tbody').innerHTML = html; } else document.querySelector('#roomsTable tbody').innerHTML = '<tr><td colspan="8" class="loading">لا توجد غرف</td></tr>'; }
+    </tr>`; }
+        document.querySelector('#roomsTable tbody').innerHTML = html; } else document.querySelector('#roomsTable tbody').innerHTML = '<tr><td colspan="8" class="loading">لا توجد غرف或是`; }
     async function editRoomName(roomId, current) { const newName = prompt('الاسم الجديد:', current); if (!newName || newName===current) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ name: newName }) }); if (res?.success) { alert('تم تغيير الاسم'); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
     async function editRoomImage(roomId) { const url = prompt('رابط الصورة الجديدة:'); if (!url) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ imageUrl: url }) }); if (res?.success) { alert('تم تحديث الصورة'); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
     async function banRoom(roomId, name) { if (!confirm(`حظر الغرفة "${name}"؟`)) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}/ban`, { method: 'POST' }); if (res?.success) { alert(res.message); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
@@ -255,7 +288,7 @@
     async function giveVIPToUser(userId, username) { const level = prompt(`مستوى VIP (1-5):`); if (!level || level<1 || level>5) return; const res = await fetchAPI('/api/admin/give-vip', { method: 'POST', body: JSON.stringify({ userId, level: parseInt(level), days: 30 }) }); alert(res?.message || 'تمت الترقية'); loadUsers(); loadVIPRanking(); }
     async function removeVIP() { const username = document.getElementById('vipUsername').value; if (!username) return alert('أدخل اسم المستخدم'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { await fetchAPI(`/api/admin/remove-vip/${data.users[0]._id}`, { method: 'POST' }); alert('تم سحب VIP'); loadUsers(); loadVIPRanking(); } }
     async function removeVIPFromUser(userId) { await fetchAPI(`/api/admin/remove-vip/${userId}`, { method: 'POST' }); alert('تم سحب VIP'); loadUsers(); loadVIPRanking(); }
-    async function loadVIPRanking() { const data = await fetchAPI('/api/vip/ranking'); if (data?.length) { let html = '<table class="data-table"><thead><tr><th>#</th><th>المستخدم</th><th>المستوى</th><th>العملات</th></tr></thead><tbody>'; data.forEach((u,i) => html += `<tr><td>${i+1}</td>了一样${u.username}</td>了一样VIP ${u.vipLevel}</td>了一样💰 ${u.coins}</tr>`); html += '</tbody></table>'; document.getElementById('vipRanking').innerHTML = html; } else document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>'; }
+    async function loadVIPRanking() { const data = await fetchAPI('/api/vip/ranking'); if (data?.length) { let html = '<table class="data-table"><thead><tr><th>#</th><th>المستخدم</th><th>المستوى</th><th>العملات</th></tr></thead><tbody>'; data.forEach((u,i) => html += `<tr><td>${i+1}</td><td>${u.username}</td><td>VIP ${u.vipLevel}</td><td>💰 ${u.coins}</td></tr>`); html += '</tbody></tr>'; document.getElementById('vipRanking').innerHTML = html; } else document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>'; }
 
     // Warnings
     async function addWarning() { const username = document.getElementById('warnUsername').value; const reason = document.getElementById('warnReason').value; if (!username || !reason) return alert('أدخل البيانات'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { const res = await fetchAPI('/api/admin/warnings/add', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) }); alert(`تم إضافة تحذير. المخاطرة: ${res?.riskScore}%`); loadUsers(); } }
@@ -293,7 +326,7 @@
         <td>${a.name}</td>
         <td>${a.ownerId?.username||'-'}</td>
         <td>${new Date(a.createdAt).toLocaleDateString()}</td>
-    </tr>`; document.querySelector('#agenciesTable tbody').innerHTML = html; } else document.querySelector('#agenciesTable tbody').innerHTML = '<tr><td colspan="3" class="loading">لا توجد وكالات</td></tr>'; }
+    </tr>`; document.querySelector('#agenciesTable tbody').innerHTML = html; } else document.querySelector('#agenciesTable tbody').innerHTML = '<td><td colspan="3" class="loading">لا توجد وكالات</td></tr>'; }
 
     // Splash
     async function addSplash() { const url = document.getElementById('splashImage').value; const duration = document.getElementById('splashDuration').value; if (!url) return alert('أدخل رابط الصورة'); await fetchAPI('/api/admin/splash', { method: 'POST', body: JSON.stringify({ imageUrl: url, duration: parseInt(duration), isActive: true }) }); alert('تمت الإضافة'); loadSplash(); }
@@ -311,7 +344,7 @@
     async function deleteBanner(id) { if (!confirm('حذف البانر؟')) return; await fetchAPI(`/api/admin/banners/${id}`, { method: 'DELETE' }); loadBanners(); }
 
     // Packages & Advanced stats
-    async function loadPackages() { const data = await fetchAPI('/api/packages'); if (data) { let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></td></thead><tbody>'; for (const [key, pkg] of Object.entries(data)) html += `<tr>
+    async function loadPackages() { const data = await fetchAPI('/api/packages'); if (data) { let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></tr></thead><tbody>'; for (const [key, pkg] of Object.entries(data)) html += `<tr>
         <td>${key.replace('_',' ')}</td>
         <td>$${pkg.price}</td>
         <td>💰 ${pkg.coins}</td>
@@ -348,4 +381,4 @@
     setInterval(checkTokenStatus, 30000);
 </script>
 </body>
-                                                                                                                                                                                                                                                                                                                                                                         </html>
+    </html>
