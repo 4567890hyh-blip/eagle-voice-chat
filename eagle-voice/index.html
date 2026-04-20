@@ -105,7 +105,7 @@
     <!-- Rooms -->
     <div id="rooms-section" style="display:none">
         <div class="card"><h3>🏠 إدارة الغرف</h3><div class="flex"><button class="btn btn-info" onclick="loadRoomsList()">🔄 تحديث القائمة</button></div>
-        <div style="overflow-x:auto;"><table class="data-table" id="roomsTable"><thead><tr><th>الاسم</th><th>المالك</th><th>المستخدمين</th><th>الصورة</th><th>الحالة</th><th>عدد المايكات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr></thead><tbody><tr><td colspan="8" class="loading">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
+        <div style="overflow-x:auto;"><table class="data-table" id="roomsTable"><thead><tr><th>الاسم</th><th>المالك</th><th>المستخدمين</th><th>الصورة</th><th>الحالة</th><th>عدد المايكات</th><th>تاريخ الإنشاء</th><th>إجراءات</th><tr></thead><tbody><tr><td colspan="8" class="loading">جاري التحميل...<\/td><\/tr><\/tbody><\/table><\/div><\/div>
     </div>
 
     <!-- VIP -->
@@ -151,44 +151,105 @@
     let token = localStorage.getItem('token');
     let currentUser = null;
 
-    // Helper
+    // دالة التحقق من صلاحية التوكن وعرض الحالة فقط (بدون تنبيهات)
     function checkTokenStatus() {
         const span = document.getElementById('tokenStatusText');
-        if (!token) { span.innerHTML = '❌ غير موجود'; span.className = 'invalid'; return false; }
+        if (!token) {
+            span.innerHTML = '❌ غير موجود';
+            span.className = 'invalid';
+            return false;
+        }
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             const exp = payload.exp * 1000;
-            if (Date.now() > exp) { span.innerHTML = '❌ منتهي'; span.className = 'invalid'; return false; }
+            if (Date.now() > exp) {
+                span.innerHTML = '❌ منتهي';
+                span.className = 'invalid';
+                return false;
+            }
             const days = Math.ceil((exp - Date.now()) / (86400000));
             span.innerHTML = `✅ صالح (${days} يوم)`;
             span.className = 'valid';
             return true;
-        } catch(e) { span.innerHTML = '⚠️ تالف'; span.className = 'warning'; return false; }
+        } catch(e) {
+            span.innerHTML = '⚠️ تالف';
+            span.className = 'warning';
+            return false;
+        }
     }
-    function refreshToken() { if (confirm('تسجيل الخروج وإعادة التوجيه؟')) { localStorage.removeItem('token'); window.location.href = '/'; } }
 
+    // تحديث التوكن (تسجيل خروج وإعادة توجيه)
+    function refreshToken() {
+        if (confirm('سيتم تسجيل الخروج وإعادة التوجيه لتسجيل الدخول مرة أخرى.')) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+        }
+    }
+
+    // دالة fetch موحدة مع التحقق من التوكن
     async function fetchAPI(url, options = {}) {
-        if (!checkTokenStatus()) { alert('⚠️ التوكن منتهي أو غير صالح. اضغط "تحديث التوكن"'); return null; }
+        // إذا كان التوكن غير صالح، لا نرسل الطلب ونعيد null
+        if (!checkTokenStatus()) {
+            return null;
+        }
         try {
             const res = await fetch(`${API_URL}${url}`, {
                 ...options,
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...options.headers }
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    ...options.headers
+                }
             });
-            if (res.status === 401) { alert('❌ جلسة منتهية. سيتم إعادة توجيهك لتسجيل الدخول.'); localStorage.removeItem('token'); window.location.href = '/'; return null; }
+            if (res.status === 401) {
+                // التوكن غير صالح على الخادم – ننظف و نوجه لتسجيل الدخول
+                localStorage.removeItem('token');
+                alert('انتهت صلاحية الجلسة. سيتم إعادة توجيهك لتسجيل الدخول.');
+                window.location.href = '/';
+                return null;
+            }
             const data = await res.json();
-            if (!res.ok) { console.error(`API error ${url}:`, data); alert(`خطأ ${res.status}: ${data.error || 'فشل الطلب'}`); return null; }
+            if (!res.ok) {
+                console.error(`API error ${url}:`, data);
+                alert(`خطأ ${res.status}: ${data.error || 'حدث خطأ'}`);
+                return null;
+            }
             return data;
-        } catch(e) { console.error(`Fetch error ${url}:`, e); alert(`خطأ في الاتصال: ${e.message}`); return null; }
+        } catch (err) {
+            console.error(`Fetch error ${url}:`, err);
+            alert('خطأ في الاتصال بالخادم. تأكد من اتصال الإنترنت.');
+            return null;
+        }
     }
 
-    async function loadUserInfo() { const data = await fetchAPI('/api/user'); if (data?.user) { currentUser = data.user; document.getElementById('sidebarUsername').innerText = currentUser.username; document.getElementById('sidebarRole').innerHTML = currentUser.role === 'super_admin' ? '<span class="badge badge-super">سوبر ادمن</span>' : (currentUser.role === 'admin' ? '<span class="badge badge-admin">ادمن</span>' : 'مستخدم'); } }
-    async function loadStats() { const data = await fetchAPI('/api/admin/stats'); if (data?.stats) { document.getElementById('statsContainer').innerHTML = `<div class="stat-card"><h3>${data.stats.totalUsers||0}</h3><p>المستخدمين</p></div><div class="stat-card"><h3>${data.stats.onlineUsers||0}</h3><p>متصلون</p></div><div class="stat-card"><h3>${data.stats.totalCoins||0}</h3><p>العملات</p></div><div class="stat-card"><h3>${data.stats.totalRevenue||0} $</h3><p>الإيرادات</p></div>`; } }
+    // تحميل معلومات المستخدم الحالي
+    async function loadUserInfo() {
+        const data = await fetchAPI('/api/user');
+        if (data && data.user) {
+            currentUser = data.user;
+            document.getElementById('sidebarUsername').innerText = currentUser.username;
+            document.getElementById('sidebarRole').innerHTML = currentUser.role === 'super_admin' ? '<span class="badge badge-super">سوبر ادمن</span>' : (currentUser.role === 'admin' ? '<span class="badge badge-admin">ادمن</span>' : 'مستخدم');
+        }
+    }
 
-    // Users
+    // إحصائيات لوحة التحكم
+    async function loadStats() {
+        const data = await fetchAPI('/api/admin/stats');
+        if (data && data.stats) {
+            document.getElementById('statsContainer').innerHTML = `
+                <div class="stat-card"><h3>${data.stats.totalUsers || 0}</h3><p>المستخدمين</p></div>
+                <div class="stat-card"><h3>${data.stats.onlineUsers || 0}</h3><p>متصلون</p></div>
+                <div class="stat-card"><h3>${data.stats.totalCoins || 0}</h3><p>العملات</p></div>
+                <div class="stat-card"><h3>${data.stats.totalRevenue || 0} $</h3><p>الإيرادات</p></div>
+            `;
+        }
+    }
+
+    // ========== المستخدمين ==========
     async function loadUsers() {
         const search = document.getElementById('searchUser')?.value || '';
         const data = await fetchAPI(`/api/admin/users?search=${search}`);
-        if (data?.users) {
+        if (data && data.users) {
             let html = '';
             for (const u of data.users) {
                 html += `<tr>
@@ -199,146 +260,630 @@
                     <td>💎 ${u.diamonds.toLocaleString()}</td>
                     <td style="color:${u.riskScore > 70 ? '#f44' : (u.riskScore > 30 ? '#fa0' : '#0f0')}">${u.riskScore}%</td>
                     <td>${u.isBanned ? '🚫 محظور' : '✅ نشط'}</td>
-                    <td><button class="btn btn-sm btn-info" onclick="showUserInfo('${u._id}','${u.username}')">📋</button> <button class="btn btn-sm btn-primary" onclick="showUserActions('${u._id}','${u.username}')">⚙️</button> <button class="btn btn-sm btn-warning" onclick="showSameDeviceAccounts('${u.deviceId}')">📱</button></td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="showUserInfo('${u._id}','${u.username}')">📋</button>
+                        <button class="btn btn-sm btn-primary" onclick="showUserActions('${u._id}','${u.username}')">⚙️</button>
+                        <button class="btn btn-sm btn-warning" onclick="showSameDeviceAccounts('${u.deviceId}')">📱</button>
+                    </td>
                 </tr>`;
             }
             document.querySelector('#usersTable tbody').innerHTML = html;
         }
     }
+
     async function showUserInfo(userId, username) {
         const data = await fetchAPI(`/api/admin/users?search=${username}`);
-        if (data?.users?.[0]) {
+        if (data && data.users && data.users[0]) {
             const u = data.users[0];
             const devices = await fetchAPI(`/api/admin/user-devices/${userId}`);
-            let html = `<h3>📋 معلومات ${username}</h3><div class="info-row"><span class="info-label">🆔 المعرف:</span><span>${u._id}</span></div>
-            <div class="info-row"><span class="info-label">👤 الاسم:</span><span>${u.username}</span></div>
-            <div class="info-row"><span class="info-label">📧 البريد:</span><span>${u.email||'-'}</span></div>
-            <div class="info-row"><span class="info-label">📱 الهاتف:</span><span>${u.phone||'-'}</span></div>
-            <div class="info-row"><span class="info-label">👑 الدور:</span><span>${u.role}</span></div>
-            <div class="info-row"><span class="info-label">💎 VIP:</span><span>${u.vipLevel||0}</span></div>
-            <div class="info-row"><span class="info-label">💰 العملات:</span><span>${u.coins}</span></div>
-            <div class="info-row"><span class="info-label">💎 الألماس:</span><span>${u.diamonds}</span></div>
-            <div class="info-row"><span class="info-label">⚠️ المخاطرة:</span><span>${u.riskScore}%</span></div>
-            <div class="info-row"><span class="info-label">🖥️ آخر IP:</span><span>${u.lastLoginIp||'-'}</span></div>`;
-            if (devices?.devices?.length) { html += `<h4>📱 الأجهزة (${devices.devices.length})</h4>`; for (const d of devices.devices) html += `<div class="device-item">📱 ${d.deviceName||'جهاز'}<br>🆔 ${d.deviceId}<br>🌐 ${d.ip||'-'}<br>📅 ${new Date(d.lastLogin).toLocaleString()}</div>`; }
+            let html = `<h3>📋 معلومات ${username}</h3>
+                <div class="info-row"><span class="info-label">🆔 المعرف:</span><span>${u._id}</span></div>
+                <div class="info-row"><span class="info-label">👤 الاسم:</span><span>${u.username}</span></div>
+                <div class="info-row"><span class="info-label">📧 البريد:</span><span>${u.email || '-'}</span></div>
+                <div class="info-row"><span class="info-label">📱 الهاتف:</span><span>${u.phone || '-'}</span></div>
+                <div class="info-row"><span class="info-label">👑 الدور:</span><span>${u.role}</span></div>
+                <div class="info-row"><span class="info-label">💎 VIP:</span><span>${u.vipLevel || 0}</span></div>
+                <div class="info-row"><span class="info-label">💰 العملات:</span><span>${u.coins}</span></div>
+                <div class="info-row"><span class="info-label">💎 الألماس:</span><span>${u.diamonds}</span></div>
+                <div class="info-row"><span class="info-label">⚠️ المخاطرة:</span><span>${u.riskScore}%</span></div>
+                <div class="info-row"><span class="info-label">🖥️ آخر IP:</span><span>${u.lastLoginIp || '-'}</span></div>`;
+            if (devices && devices.devices && devices.devices.length) {
+                html += `<h4>📱 الأجهزة (${devices.devices.length})</h4>`;
+                for (const d of devices.devices) {
+                    html += `<div class="device-item">📱 ${d.deviceName || 'جهاز'}<br>🆔 ${d.deviceId}<br>🌐 ${d.ip || '-'}<br>📅 ${new Date(d.lastLogin).toLocaleString()}</div>`;
+                }
+            }
             html += `<div class="flex"><button class="btn btn-primary" onclick="closeModal()">إغلاق</button></div>`;
-            document.getElementById('modalBody').innerHTML = html; document.getElementById('modal').style.display = 'flex';
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
         }
     }
-    async function showSameDeviceAccounts(deviceId) { if (!deviceId) { alert('لا يوجد جهاز مسجل'); return; } const data = await fetchAPI(`/api/admin/device-users/${deviceId}`); if (data?.users) { let html = `<h3>📱 حسابات من نفس الجهاز (${data.users.length})</h3>`; for (const u of data.users) html += `<div class="device-item">👤 ${u.username}<br>💰 ${u.coins}<br>👑 ${u.role}<br>${u.isBanned ? '🚫 محظور' : '✅ نشط'}</div>`; html += `<div class="flex"><button class="btn btn-primary" onclick="closeModal()">إغلاق</button></div>`; document.getElementById('modalBody').innerHTML = html; document.getElementById('modal').style.display = 'flex'; } }
-    function showUserActions(userId, username) { document.getElementById('modalBody').innerHTML = `<h3>⚙️ إدارة ${username}</h3><div style="display:flex; flex-direction:column; gap:8px"><button class="btn btn-warning" onclick="giveVIPToUser('${userId}','${username}');closeModal()">👑 إعطاء VIP</button><button class="btn btn-danger" onclick="removeVIPFromUser('${userId}');closeModal()">❌ سحب VIP</button><button class="btn btn-success" onclick="addCoinsToUser('${userId}');closeModal()">💰 إضافة عملات</button><button class="btn btn-info" onclick="addDiamondsToUser('${userId}');closeModal()">💎 إضافة ألماس</button><button class="btn btn-primary" onclick="makeAdminById('${userId}');closeModal()">👑 ترقية Admin</button><button class="btn btn-danger" onclick="banUserById('${userId}');closeModal()">🔨 حظر</button><button class="btn btn-success" onclick="unbanUser('${userId}');closeModal()">✅ فك الحظر</button><button class="btn btn-warning" onclick="resetUserPassword('${userId}');closeModal()">🔑 تغيير كلمة السر</button></div>`; document.getElementById('modal').style.display = 'flex'; }
-    async function makeAdmin() { const username = document.getElementById('quickUsername').value; if (!username) return alert('أدخل اسم المستخدم'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { const res = await fetchAPI('/api/invitations/send-admin', { method: 'POST', body: JSON.stringify({ targetUserId: data.users[0]._id, createNewAgency: true }) }); alert(res?.message || 'تمت الترقية'); loadUsers(); } }
-    async function makeAdminById(userId) { const res = await fetchAPI('/api/invitations/send-admin', { method: 'POST', body: JSON.stringify({ targetUserId: userId, createNewAgency: true }) }); alert(res?.message || 'تمت الترقية'); loadUsers(); }
-    async function addCoins() { const username = document.getElementById('quickUsername').value; const amount = prompt('عدد العملات:'); if (!username || !amount) return; await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ username, coins: parseInt(amount) }) }); alert('تم الإضافة'); loadUsers(); }
-    async function addDiamonds() { const username = document.getElementById('quickUsername').value; const amount = prompt('عدد الألماس:'); if (!username || !amount) return; await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ username, diamonds: parseInt(amount) }) }); alert('تم الإضافة'); loadUsers(); }
-    async function addCoinsToUser(userId) { const amount = prompt('عدد العملات:'); if (!amount) return; await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ userId, coins: parseInt(amount) }) }); alert('تم الإضافة'); loadUsers(); }
-    async function addDiamondsToUser(userId) { const amount = prompt('عدد الألماس:'); if (!amount) return; await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ userId, diamonds: parseInt(amount) }) }); alert('تم الإضافة'); loadUsers(); }
-    async function banUser() { const username = document.getElementById('quickUsername').value; if (!username) return alert('أدخل اسم المستخدم'); const reason = prompt('سبب الحظر:'); if (!reason) return; const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { await fetchAPI('/api/admin/ban-user', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) }); alert('تم الحظر'); loadUsers(); } }
-    async function banUserById(userId) { const reason = prompt('سبب الحظر:'); if (!reason) return; await fetchAPI('/api/admin/ban-user', { method: 'POST', body: JSON.stringify({ userId, reason }) }); alert('تم الحظر'); loadUsers(); }
-    async function unbanUser(userId) { await fetchAPI(`/api/admin/unban-user/${userId}`, { method: 'POST' }); alert('تم فك الحظر'); loadUsers(); }
-    async function resetUserPassword(userId) { const newPass = prompt('كلمة السر الجديدة:'); if (!newPass) return; await fetchAPI('/api/admin/reset-password', { method: 'POST', body: JSON.stringify({ userId, newPassword: newPass }) }); alert('تم تغيير كلمة السر'); }
 
-    // Rooms
-    async function loadRoomsList() { const data = await fetchAPI('/api/admin/rooms'); if (data?.rooms) { let html = ''; for (const r of data.rooms) { html += `<tr>
-        <td>${r.name}</td>
-        <td>${r.ownerId||'غير معروف'}</td>
-        <td>${r.users?.length||0}</td>
-        <td>${r.imageUrl ? `<img src="${r.imageUrl}" width="40" height="40" style="border-radius:8px">` : 'لا توجد'}</td>
-        <td>${r.isActive ? '<span style="color:#0f0">✅ نشطة</span>' : '<span style="color:#f44">🔒 محظورة</span>'}</td>
-        <td>${r.currentSpeakers?.length||0}/${r.maxMicrophones||5}</td>
-        <td>${new Date(r.createdAt).toLocaleDateString()}</td>
-        <td><button class="btn btn-sm btn-primary" onclick="editRoomName('${r._id}','${r.name}')">✏️ اسم</button> <button class="btn btn-sm btn-info" onclick="editRoomImage('${r._id}')">🖼️ صورة</button> ${r.isActive ? `<button class="btn btn-sm btn-danger" onclick="banRoom('${r._id}','${r.name}')">🔨 حظر</button>` : `<button class="btn btn-sm btn-success" onclick="unbanRoom('${r._id}','${r.name}')">🔓 فك الحظر</button>`} <button class="btn btn-sm btn-danger" onclick="deleteRoom('${r._id}','${r.name}')">🗑️ حذف</button></td>
-    </tr>`; }
-        document.querySelector('#roomsTable tbody').innerHTML = html; } else document.querySelector('#roomsTable tbody').innerHTML = '<tr><td colspan="8" class="loading">لا توجد غرف或是`; }
-    async function editRoomName(roomId, current) { const newName = prompt('الاسم الجديد:', current); if (!newName || newName===current) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ name: newName }) }); if (res?.success) { alert('تم تغيير الاسم'); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
-    async function editRoomImage(roomId) { const url = prompt('رابط الصورة الجديدة:'); if (!url) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ imageUrl: url }) }); if (res?.success) { alert('تم تحديث الصورة'); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
-    async function banRoom(roomId, name) { if (!confirm(`حظر الغرفة "${name}"؟`)) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}/ban`, { method: 'POST' }); if (res?.success) { alert(res.message); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
-    async function unbanRoom(roomId, name) { if (!confirm(`فك حظر الغرفة "${name}"؟`)) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}/unban`, { method: 'POST' }); if (res?.success) { alert(res.message); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
-    async function deleteRoom(roomId, name) { if (!confirm(`⚠️ حذف الغرفة "${name}" نهائياً؟`)) return; const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'DELETE' }); if (res?.success) { alert(res.message); loadRoomsList(); } else alert(res?.error || 'خطأ'); }
+    async function showSameDeviceAccounts(deviceId) {
+        if (!deviceId) { alert('لا يوجد جهاز مسجل'); return; }
+        const data = await fetchAPI(`/api/admin/device-users/${deviceId}`);
+        if (data && data.users) {
+            let html = `<h3>📱 حسابات من نفس الجهاز (${data.users.length})</h3>`;
+            for (const u of data.users) {
+                html += `<div class="device-item">👤 ${u.username}<br>💰 ${u.coins}<br>👑 ${u.role}<br>${u.isBanned ? '🚫 محظور' : '✅ نشط'}</div>`;
+            }
+            html += `<div class="flex"><button class="btn btn-primary" onclick="closeModal()">إغلاق</button></div>`;
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
+        }
+    }
 
-    // VIP
-    async function giveVIP() { const username = document.getElementById('vipUsername').value; const level = document.getElementById('vipLevelSelect').value; if (!username) return alert('أدخل اسم المستخدم'); const res = await fetchAPI('/api/admin/give-vip', { method: 'POST', body: JSON.stringify({ username, level: parseInt(level), days: 30 }) }); alert(res?.message || 'تمت الترقية'); loadUsers(); loadVIPRanking(); }
-    async function giveVIPToUser(userId, username) { const level = prompt(`مستوى VIP (1-5):`); if (!level || level<1 || level>5) return; const res = await fetchAPI('/api/admin/give-vip', { method: 'POST', body: JSON.stringify({ userId, level: parseInt(level), days: 30 }) }); alert(res?.message || 'تمت الترقية'); loadUsers(); loadVIPRanking(); }
-    async function removeVIP() { const username = document.getElementById('vipUsername').value; if (!username) return alert('أدخل اسم المستخدم'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { await fetchAPI(`/api/admin/remove-vip/${data.users[0]._id}`, { method: 'POST' }); alert('تم سحب VIP'); loadUsers(); loadVIPRanking(); } }
-    async function removeVIPFromUser(userId) { await fetchAPI(`/api/admin/remove-vip/${userId}`, { method: 'POST' }); alert('تم سحب VIP'); loadUsers(); loadVIPRanking(); }
-    async function loadVIPRanking() { const data = await fetchAPI('/api/vip/ranking'); if (data?.length) { let html = '<table class="data-table"><thead><tr><th>#</th><th>المستخدم</th><th>المستوى</th><th>العملات</th></tr></thead><tbody>'; data.forEach((u,i) => html += `<td>
-                        <td>${i+1}</td>
-                        <td>${u.username}</td>
-                        <td>VIP ${u.vipLevel}</td>
-                        <td>💰 ${u.coins}</td>
-                    </tr>`); html += '</tbody></tr>'; document.getElementById('vipRanking').innerHTML = html; } else document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>'; }
+    function showUserActions(userId, username) {
+        document.getElementById('modalBody').innerHTML = `
+            <h3>⚙️ إدارة ${username}</h3>
+            <div style="display:flex; flex-direction:column; gap:8px">
+                <button class="btn btn-warning" onclick="giveVIPToUser('${userId}','${username}');closeModal()">👑 إعطاء VIP</button>
+                <button class="btn btn-danger" onclick="removeVIPFromUser('${userId}');closeModal()">❌ سحب VIP</button>
+                <button class="btn btn-success" onclick="addCoinsToUser('${userId}');closeModal()">💰 إضافة عملات</button>
+                <button class="btn btn-info" onclick="addDiamondsToUser('${userId}');closeModal()">💎 إضافة ألماس</button>
+                <button class="btn btn-primary" onclick="makeAdminById('${userId}');closeModal()">👑 ترقية Admin</button>
+                <button class="btn btn-danger" onclick="banUserById('${userId}');closeModal()">🔨 حظر</button>
+                <button class="btn btn-success" onclick="unbanUser('${userId}');closeModal()">✅ فك الحظر</button>
+                <button class="btn btn-warning" onclick="resetUserPassword('${userId}');closeModal()">🔑 تغيير كلمة السر</button>
+            </div>
+        `;
+        document.getElementById('modal').style.display = 'flex';
+    }
 
-    // Warnings
-    async function addWarning() { const username = document.getElementById('warnUsername').value; const reason = document.getElementById('warnReason').value; if (!username || !reason) return alert('أدخل البيانات'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { const res = await fetchAPI('/api/admin/warnings/add', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) }); alert(`تم إضافة تحذير. المخاطرة: ${res?.riskScore}%`); loadUsers(); } }
-    async function loadWarnings() { const data = await fetchAPI('/api/admin/users'); if (data?.users) { let html = '<table class="data-table"><thead><td><th>المستخدم</th><th>المخاطرة</th><th>التحذيرات</th><th>الحالة</th></tr></thead><tbody>'; for (const u of data.users.filter(u=>u.riskScore>0)) html += `<tr>
-                        <td>${u.username}</td>
-                        <td style="color:${u.riskScore>70?'#f44':'#fa0'}">${u.riskScore}%</td>
-                        <td>${u.warnings?.length||0}</td>
-                        <td>${u.isBanned?'محظور':'نشط'}</td>
-                    </tr>`; html += '</tbody></table>'; document.getElementById('warningsList').innerHTML = html; } }
+    async function makeAdmin() {
+        const username = document.getElementById('quickUsername').value;
+        if (!username) return alert('أدخل اسم المستخدم');
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            const res = await fetchAPI('/api/invitations/send-admin', {
+                method: 'POST',
+                body: JSON.stringify({ targetUserId: data.users[0]._id, createNewAgency: true })
+            });
+            alert(res?.message || 'تمت الترقية');
+            loadUsers();
+        }
+    }
 
-    // Gifts & Frames
-    async function loadGifts() { const data = await fetchAPI('/api/admin/gifts'); if (data) { let html = ''; for (const g of data) html += `<tr>
-        <td>${g.name}</td>
-        <td>${g.price}</td>
-        <td>${g.type === 'frame' ? '🖼️ إطار' : '✨ تأثير دخول'}</td>
-        <td>${g.effectName || g.imageUrl || '-'}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteGift('${g._id}')">🗑️</button></td>
-    </tr>`; document.querySelector('#giftsTable tbody').innerHTML = html; const select = document.getElementById('sendGiftSelect'); if (select) select.innerHTML = '<option value="">اختر هدية</option>' + data.map(g=>`<option value="${g._id}">${g.name} (${g.price})</option>`).join(''); } }
-    async function addGift() { const name = document.getElementById('giftName').value; const price = document.getElementById('giftPrice').value; const type = document.getElementById('giftType').value; const effectName = document.getElementById('giftEffect').value; if (!name || !price) return alert('أدخل البيانات'); const res = await fetchAPI('/api/admin/gifts', { method: 'POST', body: JSON.stringify({ name, price: parseInt(price), type, effectName, isActive: true }) }); if (res?.success) { alert('تمت الإضافة'); loadGifts(); } }
-    async function deleteGift(id) { if (!confirm('حذف الهدية؟')) return; await fetchAPI(`/api/admin/gifts/${id}`, { method: 'DELETE' }); loadGifts(); }
-    async function sendGiftToUser() { const username = document.getElementById('sendGiftUsername').value; const giftId = document.getElementById('sendGiftSelect').value; if (!username || !giftId) return alert('أدخل البيانات'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { await fetchAPI('/api/gift/send', { method: 'POST', body: JSON.stringify({ giftId, targetUserId: data.users[0]._id }) }); alert('تم إرسال الهدية'); } }
+    async function makeAdminById(userId) {
+        const res = await fetchAPI('/api/invitations/send-admin', {
+            method: 'POST',
+            body: JSON.stringify({ targetUserId: userId, createNewAgency: true })
+        });
+        alert(res?.message || 'تمت الترقية');
+        loadUsers();
+    }
 
-    // Games
-    async function loadGames() { const data = await fetchAPI('/api/admin/games'); if (data?.length) { let html = ''; for (const g of data) html += `<div style="background:#2a2a4a; padding:10px; margin:10px 0; border-radius:8px"><strong>🎮 ${g.name}</strong><br>نسبة الربح: <input type="number" id="edge_${g._id}" value="${g.houseEdge}" style="width:60px">%<br>حماية AI: <input type="checkbox" id="ai_${g._id}" ${g.aiProtectionEnabled ? 'checked' : ''}><button class="btn btn-sm btn-primary" onclick="updateGame('${g._id}')">💾 حفظ</button></div>`; document.getElementById('gamesInfo').innerHTML = html; } else document.getElementById('gamesInfo').innerHTML = '<p class="loading">لا توجد ألعاب</p>'; }
-    async function updateGame(id) { const houseEdge = document.getElementById(`edge_${id}`).value; const aiEnabled = document.getElementById(`ai_${id}`).checked; await fetchAPI(`/api/admin/games/${id}`, { method: 'PUT', body: JSON.stringify({ houseEdge: parseInt(houseEdge), aiProtectionEnabled: aiEnabled }) }); alert('تم التحديث'); }
+    async function addCoins() {
+        const username = document.getElementById('quickUsername').value;
+        const amount = prompt('عدد العملات:');
+        if (!username || !amount) return;
+        await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ username, coins: parseInt(amount) }) });
+        alert('تم الإضافة');
+        loadUsers();
+    }
 
-    // Withdrawals
-    async function loadWithdrawals() { const data = await fetchAPI('/api/admin/withdrawals'); if (data?.length) { let html = ''; for (const w of data) html += `<tr>
-        <td>${w.userId?.username||'-'}</td>
-        <td>$${w.amount}</td>
-        <td>${w.status === 'pending' ? '⏳ قيد المراجعة' : '✅ مكتمل'}</td>
-        <td>${new Date(w.createdAt).toLocaleDateString()}</td>
-        <td>${w.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveWithdrawal('${w._id}')">موافقة</button>` : '-'}</td>
-    </table>`; document.querySelector('#withdrawalsTable tbody').innerHTML = html; } else document.querySelector('#withdrawalsTable tbody').innerHTML = '<tr><td colspan="5" class="loading">لا توجد طلبات或是`; }
-    async function approveWithdrawal(id) { if (!confirm('موافقة على طلب السحب؟')) return; await fetchAPI(`/api/admin/withdrawals/${id}/approve`, { method: 'POST' }); loadWithdrawals(); }
+    async function addDiamonds() {
+        const username = document.getElementById('quickUsername').value;
+        const amount = prompt('عدد الألماس:');
+        if (!username || !amount) return;
+        await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ username, diamonds: parseInt(amount) }) });
+        alert('تم الإضافة');
+        loadUsers();
+    }
 
-    // Agencies
-    async function createAgency() { const name = document.getElementById('agencyName').value; if (!name) return alert('أدخل الاسم'); const res = await fetchAPI('/api/agency/create', { method: 'POST', body: JSON.stringify({ name }) }); if (res?.success) alert('تم الإنشاء'); loadAgencies(); }
-    async function loadAgencies() { const data = await fetchAPI('/api/agencies'); if (data?.agencies) { let html = ''; for (const a of data.agencies) html += `<tr>
-        <td>${a.name}</td>
-        <td>${a.ownerId?.username||'-'}</td>
-        <td>${new Date(a.createdAt).toLocaleDateString()}</td>
-    </tr>`; document.querySelector('#agenciesTable tbody').innerHTML = html; } else document.querySelector('#agenciesTable tbody').innerHTML = '<td><td colspan="3" class="loading">لا توجد وكالات或是`; }
+    async function addCoinsToUser(userId) {
+        const amount = prompt('عدد العملات:');
+        if (!amount) return;
+        await fetchAPI('/api/admin/add-coins', { method: 'POST', body: JSON.stringify({ userId, coins: parseInt(amount) }) });
+        alert('تم الإضافة');
+        loadUsers();
+    }
 
-    // Splash
-    async function addSplash() { const url = document.getElementById('splashImage').value; const duration = document.getElementById('splashDuration').value; if (!url) return alert('أدخل رابط الصورة'); await fetchAPI('/api/admin/splash', { method: 'POST', body: JSON.stringify({ imageUrl: url, duration: parseInt(duration), isActive: true }) }); alert('تمت الإضافة'); loadSplash(); }
-    async function loadSplash() { const data = await fetchAPI('/api/admin/splash'); if (data?.length) { let html = '<div class="flex">'; for (const s of data) html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px; text-align:center"><img src="${s.imageUrl}" width="40"><br>المدة: ${s.duration} ث<br><button class="btn btn-sm btn-danger" onclick="deleteSplash('${s._id}')">🗑️</button></div>`; html += '</div>'; document.getElementById('splashList').innerHTML = html; } else document.getElementById('splashList').innerHTML = '<p class="loading">لا توجد شاشات ظهور</p>'; }
-    async function deleteSplash(id) { if (!confirm('حذف شاشة الظهور؟')) return; await fetchAPI(`/api/admin/splash/${id}`, { method: 'DELETE' }); loadSplash(); }
+    async function addDiamondsToUser(userId) {
+        const amount = prompt('عدد الألماس:');
+        if (!amount) return;
+        await fetchAPI('/api/admin/add-diamonds', { method: 'POST', body: JSON.stringify({ userId, diamonds: parseInt(amount) }) });
+        alert('تم الإضافة');
+        loadUsers();
+    }
 
-    // Events
-    async function addEvent() { const name = document.getElementById('eventName').value; const type = document.getElementById('eventType').value; if (!name) return alert('أدخل الاسم'); await fetchAPI('/api/admin/events', { method: 'POST', body: JSON.stringify({ name, type, isActive: true }) }); alert('تمت الإضافة'); loadEvents(); }
-    async function loadEvents() { const data = await fetchAPI('/api/admin/events'); if (data?.length) { let html = '<div class="flex">'; for (const e of data) html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px"><strong>${e.name}</strong><br>${e.type}<br><button class="btn btn-sm btn-danger" onclick="deleteEvent('${e._id}')">🗑️</button></div>`; html += '</div>'; document.getElementById('eventsList').innerHTML = html; } else document.getElementById('eventsList').innerHTML = '<p class="loading">لا توجد فعاليات</p>'; }
-    async function deleteEvent(id) { if (!confirm('حذف الفعالية؟')) return; await fetchAPI(`/api/admin/events/${id}`, { method: 'DELETE' }); loadEvents(); }
+    async function banUser() {
+        const username = document.getElementById('quickUsername').value;
+        if (!username) return alert('أدخل اسم المستخدم');
+        const reason = prompt('سبب الحظر:');
+        if (!reason) return;
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            await fetchAPI('/api/admin/ban-user', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) });
+            alert('تم الحظر');
+            loadUsers();
+        }
+    }
 
-    // Banners
-    async function addBanner() { const image = document.getElementById('bannerImage').value; const link = document.getElementById('bannerLink').value; if (!image) return alert('أدخل رابط الصورة'); await fetchAPI('/api/admin/banners', { method: 'POST', body: JSON.stringify({ imageUrl: image, linkUrl: link, isActive: true }) }); alert('تمت الإضافة'); loadBanners(); }
-    async function loadBanners() { const data = await fetchAPI('/api/admin/banners'); if (data?.length) { let html = '<div class="flex">'; for (const b of data) html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px; text-align:center"><img src="${b.imageUrl}" width="40"><br><button class="btn btn-sm btn-danger" onclick="deleteBanner('${b._id}')">🗑️</button></div>`; html += '</div>'; document.getElementById('bannersList').innerHTML = html; } else document.getElementById('bannersList').innerHTML = '<p class="loading">لا توجد بانرات</p>'; }
-    async function deleteBanner(id) { if (!confirm('حذف البانر؟')) return; await fetchAPI(`/api/admin/banners/${id}`, { method: 'DELETE' }); loadBanners(); }
+    async function banUserById(userId) {
+        const reason = prompt('سبب الحظر:');
+        if (!reason) return;
+        await fetchAPI('/api/admin/ban-user', { method: 'POST', body: JSON.stringify({ userId, reason }) });
+        alert('تم الحظر');
+        loadUsers();
+    }
 
-    // Packages & Advanced stats
-    async function loadPackages() { const data = await fetchAPI('/api/packages'); if (data) { let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></td></thead><tbody>'; for (const [key, pkg] of Object.entries(data)) html += `<tr>
-        <td>${key.replace('_',' ')}</td>
-        <td>$${pkg.price}</td>
-        <td>💰 ${pkg.coins}</td>
-    </tr>`; html += '</tbody></tr>'; document.getElementById('packagesList').innerHTML = html; } else document.getElementById('packagesList').innerHTML = '<p class="loading">لا توجد باقات</p>'; }
-    async function savePackages() { alert('تم حفظ الإعدادات (تحديث الأسعار يتم من قاعدة البيانات)'); }
-    async function loadAdvancedStats() { const data = await fetchAPI('/api/admin/advanced-stats'); if (data) document.getElementById('advancedStats').innerHTML = `<div class="stat-card"><h3>${data.users?.totalUsers||0}</h3><p>المستخدمين</p></div><div class="stat-card"><h3>${data.vip?.total||0}</h3><p>VIP</p></div><div class="stat-card"><h3>${data.gifts?.totalSent||0}</h3><p>الهدايا</p></div><div class="stat-card"><h3>${data.moderation?.bannedUsers||0}</h3><p>محظورين</p></div>`; }
+    async function unbanUser(userId) {
+        await fetchAPI(`/api/admin/unban-user/${userId}`, { method: 'POST' });
+        alert('تم فك الحظر');
+        loadUsers();
+    }
 
-    // Navigation
+    async function resetUserPassword(userId) {
+        const newPass = prompt('كلمة السر الجديدة:');
+        if (!newPass) return;
+        await fetchAPI('/api/admin/reset-password', { method: 'POST', body: JSON.stringify({ userId, newPassword: newPass }) });
+        alert('تم تغيير كلمة السر');
+    }
+
+    // ========== الغرف ==========
+    async function loadRoomsList() {
+        const data = await fetchAPI('/api/admin/rooms');
+        if (data && data.rooms) {
+            let html = '';
+            for (const r of data.rooms) {
+                html += `<tr>
+                    <td>${r.name}</td>
+                    <td>${r.ownerId || 'غير معروف'}</td>
+                    <td>${r.users?.length || 0}</td>
+                    <td>${r.imageUrl ? `<img src="${r.imageUrl}" width="40" height="40" style="border-radius:8px">` : 'لا توجد'}</td>
+                    <td>${r.isActive ? '<span style="color:#0f0">✅ نشطة</span>' : '<span style="color:#f44">🔒 محظورة</span>'}</td>
+                    <td>${r.currentSpeakers?.length || 0}/${r.maxMicrophones || 5}</td>
+                    <td>${new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editRoomName('${r._id}','${r.name}')">✏️ اسم</button>
+                        <button class="btn btn-sm btn-info" onclick="editRoomImage('${r._id}')">🖼️ صورة</button>
+                        ${r.isActive ? `<button class="btn btn-sm btn-danger" onclick="banRoom('${r._id}','${r.name}')">🔨 حظر</button>` : `<button class="btn btn-sm btn-success" onclick="unbanRoom('${r._id}','${r.name}')">🔓 فك الحظر</button>`}
+                        <button class="btn btn-sm btn-danger" onclick="deleteRoom('${r._id}','${r.name}')">🗑️ حذف</button>
+                    </td>
+                </tr>`;
+            }
+            document.querySelector('#roomsTable tbody').innerHTML = html;
+        } else {
+            document.querySelector('#roomsTable tbody').innerHTML = '<tr><td colspan="8" class="loading">لا توجد غرف</td></tr>';
+        }
+    }
+
+    async function editRoomName(roomId, current) {
+        const newName = prompt('الاسم الجديد:', current);
+        if (!newName || newName === current) return;
+        const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
+        if (res && res.success) {
+            alert('تم تغيير الاسم');
+            loadRoomsList();
+        } else {
+            alert(res?.error || 'خطأ');
+        }
+    }
+
+    async function editRoomImage(roomId) {
+        const url = prompt('رابط الصورة الجديدة:');
+        if (!url) return;
+        const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify({ imageUrl: url }) });
+        if (res && res.success) {
+            alert('تم تحديث الصورة');
+            loadRoomsList();
+        } else {
+            alert(res?.error || 'خطأ');
+        }
+    }
+
+    async function banRoom(roomId, name) {
+        if (!confirm(`حظر الغرفة "${name}"؟`)) return;
+        const res = await fetchAPI(`/api/admin/rooms/${roomId}/ban`, { method: 'POST' });
+        if (res && res.success) {
+            alert(res.message);
+            loadRoomsList();
+        } else {
+            alert(res?.error || 'خطأ');
+        }
+    }
+
+    async function unbanRoom(roomId, name) {
+        if (!confirm(`فك حظر الغرفة "${name}"؟`)) return;
+        const res = await fetchAPI(`/api/admin/rooms/${roomId}/unban`, { method: 'POST' });
+        if (res && res.success) {
+            alert(res.message);
+            loadRoomsList();
+        } else {
+            alert(res?.error || 'خطأ');
+        }
+    }
+
+    async function deleteRoom(roomId, name) {
+        if (!confirm(`⚠️ حذف الغرفة "${name}" نهائياً؟`)) return;
+        const res = await fetchAPI(`/api/admin/rooms/${roomId}`, { method: 'DELETE' });
+        if (res && res.success) {
+            alert(res.message);
+            loadRoomsList();
+        } else {
+            alert(res?.error || 'خطأ');
+        }
+    }
+
+    // ========== VIP ==========
+    async function giveVIP() {
+        const username = document.getElementById('vipUsername').value;
+        const level = document.getElementById('vipLevelSelect').value;
+        if (!username) return alert('أدخل اسم المستخدم');
+        const res = await fetchAPI('/api/admin/give-vip', {
+            method: 'POST',
+            body: JSON.stringify({ username, level: parseInt(level), days: 30 })
+        });
+        alert(res?.message || 'تمت الترقية');
+        loadUsers();
+        loadVIPRanking();
+    }
+
+    async function giveVIPToUser(userId, username) {
+        const level = prompt(`مستوى VIP (1-5):`);
+        if (!level || level < 1 || level > 5) return;
+        const res = await fetchAPI('/api/admin/give-vip', {
+            method: 'POST',
+            body: JSON.stringify({ userId, level: parseInt(level), days: 30 })
+        });
+        alert(res?.message || 'تمت الترقية');
+        loadUsers();
+        loadVIPRanking();
+    }
+
+    async function removeVIP() {
+        const username = document.getElementById('vipUsername').value;
+        if (!username) return alert('أدخل اسم المستخدم');
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            await fetchAPI(`/api/admin/remove-vip/${data.users[0]._id}`, { method: 'POST' });
+            alert('تم سحب VIP');
+            loadUsers();
+            loadVIPRanking();
+        }
+    }
+
+    async function removeVIPFromUser(userId) {
+        await fetchAPI(`/api/admin/remove-vip/${userId}`, { method: 'POST' });
+        alert('تم سحب VIP');
+        loadUsers();
+        loadVIPRanking();
+    }
+
+    async function loadVIPRanking() {
+        const data = await fetchAPI('/api/vip/ranking');
+        if (data && data.length) {
+            let html = '<table class="data-table"><thead><tr><th>#</th><th>المستخدم</th><th>المستوى</th><th>العملات</th></tr></thead><tbody>';
+            data.forEach((u, i) => {
+                html += `<tr><td>${i + 1}</td><td>${u.username}</td><td>VIP ${u.vipLevel}</td><td>💰 ${u.coins}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('vipRanking').innerHTML = html;
+        } else {
+            document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>';
+        }
+    }
+
+    // ========== المخالفات ==========
+    async function addWarning() {
+        const username = document.getElementById('warnUsername').value;
+        const reason = document.getElementById('warnReason').value;
+        if (!username || !reason) return alert('أدخل البيانات');
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            const res = await fetchAPI('/api/admin/warnings/add', {
+                method: 'POST',
+                body: JSON.stringify({ userId: data.users[0]._id, reason })
+            });
+            alert(`تم إضافة تحذير. المخاطرة: ${res?.riskScore}%`);
+            loadUsers();
+        }
+    }
+
+    async function loadWarnings() {
+        const data = await fetchAPI('/api/admin/users');
+        if (data && data.users) {
+            let html = '<table class="data-table"><thead><tr><th>المستخدم</th><th>المخاطرة</th><th>التحذيرات</th><th>الحالة</th></tr></thead><tbody>';
+            for (const u of data.users.filter(u => u.riskScore > 0)) {
+                html += `<tr>
+                    <td>${u.username}</td>
+                    <td style="color:${u.riskScore > 70 ? '#f44' : '#fa0'}">${u.riskScore}%</td>
+                    <td>${u.warnings?.length || 0}</td>
+                    <td>${u.isBanned ? 'محظور' : 'نشط'}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('warningsList').innerHTML = html;
+        }
+    }
+
+    // ========== الهدايا والإطارات ==========
+    async function loadGifts() {
+        const data = await fetchAPI('/api/admin/gifts');
+        if (data) {
+            let html = '';
+            for (const g of data) {
+                html += `<tr>
+                    <td>${g.name}</td>
+                    <td>${g.price}</td>
+                    <td>${g.type === 'frame' ? '🖼️ إطار' : '✨ تأثير دخول'}</td>
+                    <td>${g.effectName || g.imageUrl || '-'}</td>
+                    <td><button class="btn btn-sm btn-danger" onclick="deleteGift('${g._id}')">🗑️</button></td>
+                </tr>`;
+            }
+            document.querySelector('#giftsTable tbody').innerHTML = html;
+            const select = document.getElementById('sendGiftSelect');
+            if (select) {
+                select.innerHTML = '<option value="">اختر هدية</option>' + data.map(g => `<option value="${g._id}">${g.name} (${g.price})</option>`).join('');
+            }
+        }
+    }
+
+    async function addGift() {
+        const name = document.getElementById('giftName').value;
+        const price = document.getElementById('giftPrice').value;
+        const type = document.getElementById('giftType').value;
+        const effectName = document.getElementById('giftEffect').value;
+        if (!name || !price) return alert('أدخل البيانات');
+        const res = await fetchAPI('/api/admin/gifts', {
+            method: 'POST',
+            body: JSON.stringify({ name, price: parseInt(price), type, effectName, isActive: true })
+        });
+        if (res && res.success) {
+            alert('تمت الإضافة');
+            loadGifts();
+        }
+    }
+
+    async function deleteGift(id) {
+        if (!confirm('حذف الهدية؟')) return;
+        await fetchAPI(`/api/admin/gifts/${id}`, { method: 'DELETE' });
+        loadGifts();
+    }
+
+    async function sendGiftToUser() {
+        const username = document.getElementById('sendGiftUsername').value;
+        const giftId = document.getElementById('sendGiftSelect').value;
+        if (!username || !giftId) return alert('أدخل البيانات');
+        const data = await fetchAPI(`/api/admin/users?search=${username}`);
+        if (data && data.users && data.users[0]) {
+            await fetchAPI('/api/gift/send', {
+                method: 'POST',
+                body: JSON.stringify({ giftId, targetUserId: data.users[0]._id })
+            });
+            alert('تم إرسال الهدية');
+        }
+    }
+
+    // ========== الألعاب ==========
+    async function loadGames() {
+        const data = await fetchAPI('/api/admin/games');
+        if (data && data.length) {
+            let html = '';
+            for (const g of data) {
+                html += `<div style="background:#2a2a4a; padding:10px; margin:10px 0; border-radius:8px">
+                    <strong>🎮 ${g.name}</strong><br>
+                    نسبة الربح: <input type="number" id="edge_${g._id}" value="${g.houseEdge}" style="width:60px">%<br>
+                    حماية AI: <input type="checkbox" id="ai_${g._id}" ${g.aiProtectionEnabled ? 'checked' : ''}>
+                    <button class="btn btn-sm btn-primary" onclick="updateGame('${g._id}')">💾 حفظ</button>
+                </div>`;
+            }
+            document.getElementById('gamesInfo').innerHTML = html;
+        } else {
+            document.getElementById('gamesInfo').innerHTML = '<p class="loading">لا توجد ألعاب</p>';
+        }
+    }
+
+    async function updateGame(id) {
+        const houseEdge = document.getElementById(`edge_${id}`).value;
+        const aiEnabled = document.getElementById(`ai_${id}`).checked;
+        await fetchAPI(`/api/admin/games/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ houseEdge: parseInt(houseEdge), aiProtectionEnabled: aiEnabled })
+        });
+        alert('تم التحديث');
+    }
+
+    // ========== السحوبات ==========
+    async function loadWithdrawals() {
+        const data = await fetchAPI('/api/admin/withdrawals');
+        if (data && data.length) {
+            let html = '';
+            for (const w of data) {
+                html += `<tr>
+                    <td>${w.userId?.username || '-'}</td>
+                    <td>$${w.amount}</td>
+                    <td>${w.status === 'pending' ? '⏳ قيد المراجعة' : '✅ مكتمل'}</td>
+                    <td>${new Date(w.createdAt).toLocaleDateString()}</td>
+                    <td>${w.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveWithdrawal('${w._id}')">موافقة</button>` : '-'}</td>
+                </tr>`;
+            }
+            document.querySelector('#withdrawalsTable tbody').innerHTML = html;
+        } else {
+            document.querySelector('#withdrawalsTable tbody').innerHTML = '<tr><td colspan="5" class="loading">لا توجد طلبات</td></tr>';
+        }
+    }
+
+    async function approveWithdrawal(id) {
+        if (!confirm('موافقة على طلب السحب؟')) return;
+        await fetchAPI(`/api/admin/withdrawals/${id}/approve`, { method: 'POST' });
+        loadWithdrawals();
+    }
+
+    // ========== الوكالات ==========
+    async function createAgency() {
+        const name = document.getElementById('agencyName').value;
+        if (!name) return alert('أدخل الاسم');
+        const res = await fetchAPI('/api/agency/create', { method: 'POST', body: JSON.stringify({ name }) });
+        if (res && res.success) alert('تم الإنشاء');
+        loadAgencies();
+    }
+
+    async function loadAgencies() {
+        const data = await fetchAPI('/api/agencies');
+        if (data && data.agencies) {
+            let html = '';
+            for (const a of data.agencies) {
+                html += `<tr>
+                    <td>${a.name}</td>
+                    <td>${a.ownerId?.username || '-'}</td>
+                    <td>${new Date(a.createdAt).toLocaleDateString()}</td>
+                </tr>`;
+            }
+            document.querySelector('#agenciesTable tbody').innerHTML = html;
+        } else {
+            document.querySelector('#agenciesTable tbody').innerHTML = '<tr><td colspan="3" class="loading">لا توجد وكالات</td></tr>';
+        }
+    }
+
+    // ========== شاشة الظهور ==========
+    async function addSplash() {
+        const url = document.getElementById('splashImage').value;
+        const duration = document.getElementById('splashDuration').value;
+        if (!url) return alert('أدخل رابط الصورة');
+        await fetchAPI('/api/admin/splash', {
+            method: 'POST',
+            body: JSON.stringify({ imageUrl: url, duration: parseInt(duration), isActive: true })
+        });
+        alert('تمت الإضافة');
+        loadSplash();
+    }
+
+    async function loadSplash() {
+        const data = await fetchAPI('/api/admin/splash');
+        if (data && data.length) {
+            let html = '<div class="flex">';
+            for (const s of data) {
+                html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px; text-align:center">
+                    <img src="${s.imageUrl}" width="40"><br>
+                    المدة: ${s.duration} ث<br>
+                    <button class="btn btn-sm btn-danger" onclick="deleteSplash('${s._id}')">🗑️</button>
+                </div>`;
+            }
+            html += '</div>';
+            document.getElementById('splashList').innerHTML = html;
+        } else {
+            document.getElementById('splashList').innerHTML = '<p class="loading">لا توجد شاشات ظهور</p>';
+        }
+    }
+
+    async function deleteSplash(id) {
+        if (!confirm('حذف شاشة الظهور؟')) return;
+        await fetchAPI(`/api/admin/splash/${id}`, { method: 'DELETE' });
+        loadSplash();
+    }
+
+    // ========== الفعاليات ==========
+    async function addEvent() {
+        const name = document.getElementById('eventName').value;
+        const type = document.getElementById('eventType').value;
+        if (!name) return alert('أدخل الاسم');
+        await fetchAPI('/api/admin/events', {
+            method: 'POST',
+            body: JSON.stringify({ name, type, isActive: true })
+        });
+        alert('تمت الإضافة');
+        loadEvents();
+    }
+
+    async function loadEvents() {
+        const data = await fetchAPI('/api/admin/events');
+        if (data && data.length) {
+            let html = '<div class="flex">';
+            for (const e of data) {
+                html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px">
+                    <strong>${e.name}</strong><br>${e.type}<br>
+                    <button class="btn btn-sm btn-danger" onclick="deleteEvent('${e._id}')">🗑️</button>
+                </div>`;
+            }
+            html += '</div>';
+            document.getElementById('eventsList').innerHTML = html;
+        } else {
+            document.getElementById('eventsList').innerHTML = '<p class="loading">لا توجد فعاليات</p>';
+        }
+    }
+
+    async function deleteEvent(id) {
+        if (!confirm('حذف الفعالية؟')) return;
+        await fetchAPI(`/api/admin/events/${id}`, { method: 'DELETE' });
+        loadEvents();
+    }
+
+    // ========== البانرات ==========
+    async function addBanner() {
+        const image = document.getElementById('bannerImage').value;
+        const link = document.getElementById('bannerLink').value;
+        if (!image) return alert('أدخل رابط الصورة');
+        await fetchAPI('/api/admin/banners', {
+            method: 'POST',
+            body: JSON.stringify({ imageUrl: image, linkUrl: link, isActive: true })
+        });
+        alert('تمت الإضافة');
+        loadBanners();
+    }
+
+    async function loadBanners() {
+        const data = await fetchAPI('/api/admin/banners');
+        if (data && data.length) {
+            let html = '<div class="flex">';
+            for (const b of data) {
+                html += `<div style="background:#2a2a4a; padding:8px; border-radius:8px; text-align:center">
+                    <img src="${b.imageUrl}" width="40"><br>
+                    <button class="btn btn-sm btn-danger" onclick="deleteBanner('${b._id}')">🗑️</button>
+                </div>`;
+            }
+            html += '</div>';
+            document.getElementById('bannersList').innerHTML = html;
+        } else {
+            document.getElementById('bannersList').innerHTML = '<p class="loading">لا توجد بانرات</p>';
+        }
+    }
+
+    async function deleteBanner(id) {
+        if (!confirm('حذف البانر؟')) return;
+        await fetchAPI(`/api/admin/banners/${id}`, { method: 'DELETE' });
+        loadBanners();
+    }
+
+    // ========== أسعار الشحن والإحصائيات المتقدمة ==========
+    async function loadPackages() {
+        const data = await fetchAPI('/api/packages');
+        if (data) {
+            let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></tr></thead><tbody>';
+            for (const [key, pkg] of Object.entries(data)) {
+                html += `<tr><td>${key.replace('_', ' ')}</td><td>$${pkg.price}</td><td>💰 ${pkg.coins}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('packagesList').innerHTML = html;
+        } else {
+            document.getElementById('packagesList').innerHTML = '<p class="loading">لا توجد باقات</p>';
+        }
+    }
+
+    async function savePackages() {
+        alert('تم حفظ الإعدادات (تحديث الأسعار يتم من قاعدة البيانات)');
+    }
+
+    async function loadAdvancedStats() {
+        const data = await fetchAPI('/api/admin/advanced-stats');
+        if (data) {
+            document.getElementById('advancedStats').innerHTML = `
+                <div class="stat-card"><h3>${data.users?.totalUsers || 0}</h3><p>المستخدمين</p></div>
+                <div class="stat-card"><h3>${data.vip?.total || 0}</h3><p>VIP</p></div>
+                <div class="stat-card"><h3>${data.gifts?.totalSent || 0}</h3><p>الهدايا</p></div>
+                <div class="stat-card"><h3>${data.moderation?.bannedUsers || 0}</h3><p>محظورين</p></div>
+            `;
+        }
+    }
+
+    // ========== التنقل ==========
     function showSection(section) {
-        const sections = ['dashboard','users','rooms','vip','warnings','gifts','games','withdrawals','packages','agencies','splash','events','banners','settings'];
-        sections.forEach(s => { const el = document.getElementById(`${s}-section`); if (el) el.style.display = s === section ? 'block' : 'none'; });
+        const sections = ['dashboard', 'users', 'rooms', 'vip', 'warnings', 'gifts', 'games', 'withdrawals', 'packages', 'agencies', 'splash', 'events', 'banners', 'settings'];
+        sections.forEach(s => {
+            const el = document.getElementById(`${s}-section`);
+            if (el) el.style.display = s === section ? 'block' : 'none';
+        });
         document.getElementById('pageTitle').innerText = section.charAt(0).toUpperCase() + section.slice(1);
         if (section === 'dashboard') loadStats();
         if (section === 'users') loadUsers();
@@ -354,14 +899,9 @@
         if (section === 'banners') loadBanners();
         if (section === 'settings') loadAdvancedStats();
     }
-    function closeModal() { document.getElementById('modal').style.display = 'none'; }
-    function logout() { localStorage.removeItem('token'); window.location.href = '/'; }
 
-    // Initialization
-    checkTokenStatus();
-    loadUserInfo();
-    loadStats();
-    setInterval(checkTokenStatus, 30000);
-</script>
-</body>
-    </html>
+    function closeModal() {
+        document.getElementById('modal').style.display = 'none';
+    }
+
+    fu
