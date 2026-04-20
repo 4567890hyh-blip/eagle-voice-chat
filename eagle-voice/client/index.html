@@ -1,0 +1,305 @@
+here<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Eagle Voice Chat - غرف صوتية حية</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
+        body { background: #0a0a0f; color: white; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .card { background: #1a1a2e; border-radius: 20px; padding: 20px; margin-bottom: 20px; }
+        .flex { display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+        button, input { padding: 10px 15px; border-radius: 30px; border: none; }
+        button { background: #e94560; color: white; cursor: pointer; }
+        .room-item { background: #2a2a4a; padding: 15px; border-radius: 15px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; }
+        .room-item:hover { background: #e94560; transform: scale(1.01); }
+        .speaker-list { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; }
+        .speaker { background: #2a2a4a; border-radius: 40px; padding: 5px 15px; display: inline-flex; align-items: center; gap: 8px; }
+        .speaker.active { background: #28a745; box-shadow: 0 0 10px #28a745; }
+        .chat-box { height: 300px; overflow-y: auto; background: #0f0f1a; border-radius: 20px; padding: 10px; margin: 10px 0; }
+        .message { margin: 8px 0; display: flex; align-items: center; gap: 10px; }
+        .avatar { width: 35px; height: 35px; border-radius: 50%; background: #e94560; display: flex; align-items: center; justify-content: center; }
+        .avatar img { width: 100%; border-radius: 50%; }
+        .frame-border { border: 3px solid gold; border-radius: 50%; }
+        .entry-animation { animation: fadeInUp 0.5s ease; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .profile { display: flex; align-items: center; gap: 15px; }
+        .profile-pic { width: 60px; height: 60px; border-radius: 50%; background: #e94560; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+        .mic-count { font-size: 12px; background: #2a2a4a; padding: 4px 8px; border-radius: 20px; }
+        @media (max-width: 700px) { .container { padding: 10px; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🦅 Eagle Voice Chat</h1>
+
+    <!-- شاشة تسجيل الدخول -->
+    <div id="loginSection" class="card">
+        <h3>🔐 تسجيل الدخول</h3>
+        <input type="text" id="loginUsername" placeholder="اسم المستخدم">
+        <input type="password" id="loginPassword" placeholder="كلمة السر">
+        <button onclick="login()">دخول</button>
+        <button onclick="showRegister()" style="background:#6c757d">إنشاء حساب</button>
+    </div>
+
+    <!-- شاشة التسجيل -->
+    <div id="registerSection" class="card" style="display:none">
+        <h3>📝 حساب جديد</h3>
+        <input type="text" id="regUsername" placeholder="اسم المستخدم">
+        <input type="password" id="regPassword" placeholder="كلمة السر">
+        <input type="email" id="regEmail" placeholder="البريد الإلكتروني">
+        <button onclick="register()">تسجيل</button>
+        <button onclick="showLogin()" style="background:#6c757d">عودة</button>
+    </div>
+
+    <!-- التطبيق الرئيسي بعد الدخول -->
+    <div id="appSection" style="display:none">
+        <!-- البروفايل والإطارات -->
+        <div class="card">
+            <div class="flex" style="justify-content: space-between;">
+                <div class="profile" id="profileInfo"></div>
+                <div>
+                    <button onclick="document.getElementById('avatarInput').click()">🖼️ تغيير الصورة</button>
+                    <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="uploadAvatar(this.files[0])">
+                    <button onclick="openShop()">🛒 متجر الإطارات</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- قائمة الغرف -->
+        <div class="card">
+            <h3>🏠 الغرف المتاحة</h3>
+            <div id="roomsList"></div>
+            <div class="flex" style="margin-top:10px">
+                <input type="text" id="newRoomName" placeholder="اسم الغرفة الجديدة" style="flex:1">
+                <input type="number" id="maxMics" placeholder="عدد المايكات" value="5" style="width:80px">
+                <button onclick="createRoom()">➕ إنشاء غرفة</button>
+            </div>
+        </div>
+
+        <!-- شاشة الغرفة (داخلها) -->
+        <div id="roomView" style="display:none">
+            <div class="card">
+                <div class="flex" style="justify-content: space-between;">
+                    <h3 id="roomTitle">💬 الغرفة</h3>
+                    <div>
+                        <span id="micCount" class="mic-count"></span>
+                        <button id="lockMicsBtn" onclick="toggleLockMics()">🔒 قفل المايكات</button>
+                        <button onclick="leaveRoom()" style="background:#dc3545">🚪 مغادرة</button>
+                    </div>
+                </div>
+                <div class="speaker-list" id="speakersList"></div>
+                <div class="chat-box" id="messages"></div>
+                <div class="flex">
+                    <input type="text" id="messageInput" placeholder="اكتب رسالة..." style="flex:1">
+                    <button onclick="sendMessage()">📨 إرسال</button>
+                    <button id="micBtn" onclick="toggleMic()" style="background:#28a745">🎤 رفع المايك</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    let token = localStorage.getItem('token');
+    let currentUser = null;
+    let socket = null;
+    let currentRoom = null;
+    let isMicActive = false;
+
+    // Helper functions
+    function showRegister() { document.getElementById('loginSection').style.display = 'none'; document.getElementById('registerSection').style.display = 'block'; }
+    function showLogin() { document.getElementById('registerSection').style.display = 'none'; document.getElementById('loginSection').style.display = 'block'; }
+
+    async function login() {
+        const username = document.getElementById('loginUsername').value;
+        const password = document.getElementById('loginPassword').value;
+        const res = await fetch('/api/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, deviceId: 'web_' + Date.now() })
+        });
+        const data = await res.json();
+        if (data.success) {
+            token = data.token;
+            localStorage.setItem('token', token);
+            currentUser = data.user;
+            connectSocket();
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('appSection').style.display = 'block';
+            updateProfileUI();
+            loadRooms();
+        } else alert(data.error);
+    }
+
+    async function register() {
+        const data = {
+            username: document.getElementById('regUsername').value,
+            password: document.getElementById('regPassword').value,
+            email: document.getElementById('regEmail').value,
+            deviceId: 'web_' + Date.now()
+        };
+        const res = await fetch('/api/register', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (result.success) { alert('تم التسجيل بنجاح'); showLogin(); }
+        else alert(result.error);
+    }
+
+    function updateProfileUI() {
+        const profileDiv = document.getElementById('profileInfo');
+        profileDiv.innerHTML = `
+            <div class="profile-pic ${currentUser.frame ? 'frame-border' : ''}" style="background-image: url(${currentUser.avatar}); background-size: cover;">👤</div>
+            <div><strong>${currentUser.username}</strong><br>💰 ${currentUser.coins} | 💎 ${currentUser.diamonds}<br>🎭 تأثير: ${currentUser.entryEffect || 'عادي'}</div>
+        `;
+    }
+
+    async function uploadAvatar(file) {
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('avatar', file);
+        const res = await fetch('/api/upload-avatar', {
+            method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
+        });
+        const data = await res.json();
+        if (data.success) { currentUser.avatar = data.avatar; updateProfileUI(); }
+        else alert(data.error);
+    }
+
+    function connectSocket() {
+        socket = io({ auth: { token } });
+        socket.on('connect', () => console.log('Socket متصل'));
+        socket.on('rooms-updated', () => loadRooms());
+        socket.on('user-joined', (data) => {
+            addSystemMessage(`🎉 ${data.username} دخل الغرفة${data.entryEffect ? ` بتأثير ${data.entryEffect}` : ''}`);
+            if (data.entryEffect === 'fly') playFlyEffect();
+        });
+        socket.on('user-left', (userId) => addSystemMessage(`👋 مستخدم غادر الغرفة`));
+        socket.on('speaker-joined', (data) => {
+            addSystemMessage(`🎤 ${data.username} رفع المايك`);
+            updateSpeakersList();
+        });
+        socket.on('speaker-removed', (userId) => {
+            addSystemMessage(`🔇 تم إنزال المايك`);
+            updateSpeakersList();
+        });
+        socket.on('speakers-list', () => updateSpeakersList());
+        socket.on('mics-locked', (locked) => addSystemMessage(locked ? '🔒 المايكات مقفلة' : '🔓 المايكات مفتوحة'));
+        socket.on('new-message', (msg) => addMessage(msg));
+    }
+
+    async function loadRooms() {
+        const res = await fetch('/api/rooms');
+        const rooms = await res.json();
+        const container = document.getElementById('roomsList');
+        if (!rooms.length) { container.innerHTML = '<p>لا توجد غرف، كن أول من ينشئ غرفة!</p>'; return; }
+        let html = '';
+        rooms.forEach(room => {
+            html += `<div class="room-item" onclick="joinRoom('${room._id}', '${room.name}')">
+                        🏠 ${room.name} | 👥 ${room.users?.length || 0} | 🎤 ${room.currentSpeakers?.length || 0}/${room.maxMicrophones}
+                    </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function createRoom() {
+        const name = document.getElementById('newRoomName').value;
+        const maxMics = parseInt(document.getElementById('maxMics').value) || 5;
+        if (!name) return alert('أدخل اسم الغرفة');
+        socket.emit('create-room', { name, maxMicrophones: maxMics }, (res) => {
+            if (res.success) { alert('تم إنشاء الغرفة'); loadRooms(); }
+            else alert(res.error);
+        });
+    }
+
+    function joinRoom(roomId, roomName) {
+        currentRoom = { id: roomId, name: roomName };
+        socket.emit('join-room', { roomId }, (res) => {
+            if (res.success) {
+                document.getElementById('roomView').style.display = 'block';
+                document.getElementById('roomTitle').innerHTML = `💬 ${roomName}`;
+                document.getElementById('messages').innerHTML = '';
+                updateSpeakersList();
+            } else alert(res.error);
+        });
+    }
+
+    function updateSpeakersList() {
+        if (!currentRoom) return;
+        socket.emit('get-room-state', { roomId: currentRoom.id }, (res) => {
+            if (res) {
+                const container = document.getElementById('speakersList');
+                container.innerHTML = res.currentSpeakers.map(uid => `<div class="speaker active">🎤 ${uid}</div>`).join('') || '<div class="speaker">لا يوجد متحدثون</div>';
+                document.getElementById('micCount').innerHTML = `🎤 ${res.currentSpeakers.length}/${res.maxMicrophones}`;
+                const isOwner = (res.ownerId === currentUser._id);
+                document.getElementById('lockMicsBtn').style.display = isOwner ? 'inline-block' : 'none';
+            }
+        });
+    }
+
+    function toggleMic() {
+        if (!currentRoom) return;
+        if (isMicActive) {
+            socket.emit('remove-speaker', { roomId: currentRoom.id, userId: currentUser._id });
+            isMicActive = false;
+            document.getElementById('micBtn').innerHTML = '🎤 رفع المايك';
+            document.getElementById('micBtn').style.background = '#28a745';
+        } else {
+            socket.emit('request-mic', { roomId: currentRoom.id }, (res) => {
+                if (res.success) {
+                    isMicActive = true;
+                    document.getElementById('micBtn').innerHTML = '🔇 كتم المايك';
+                    document.getElementById('micBtn').style.background = '#dc3545';
+                } else alert(res.error);
+            });
+        }
+    }
+
+    function toggleLockMics() {
+        if (!currentRoom) return;
+        socket.emit('lock-mics', { roomId: currentRoom.id, locked: true }, (res) => {
+            if (res.success) alert('تم قفل المايكات');
+        });
+    }
+
+    function sendMessage() {
+        const msg = document.getElementById('messageInput').value;
+        if (!msg || !currentRoom) return;
+        socket.emit('send-message', { roomId: currentRoom.id, message: msg });
+        document.getElementById('messageInput').value = '';
+    }
+
+    function addMessage(msg) {
+        const div = document.createElement('div');
+        div.className = 'message';
+        div.innerHTML = `<div class="avatar ${msg.frame ? 'frame-border' : ''}"><img src="${msg.avatar}" onerror="this.src='/uploads/default-avatar.png'"></div>
+                         <div><strong>${msg.username}</strong><br>${msg.message}</div>`;
+        document.getElementById('messages').appendChild(div);
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+
+    function addSystemMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'message';
+        div.innerHTML = `<div class="avatar">📢</div><div><em>${text}</em></div>`;
+        document.getElementById('messages').appendChild(div);
+    }
+
+    function playFlyEffect() { /* يمكن إضافة أنيميشن بسيط */ console.log('تأثير طيران'); }
+
+    function leaveRoom() {
+        if (currentRoom) socket.emit('leave-room', { roomId: currentRoom.id });
+        currentRoom = null;
+        document.getElementById('roomView').style.display = 'none';
+        isMicActive = false;
+    }
+
+    function openShop() { alert('سيتم إضافة متجر الإطارات والتأثيرات قريباً'); }
+
+    if (token) { login(); }
+</script>
+</body>
+                                                      </html>
