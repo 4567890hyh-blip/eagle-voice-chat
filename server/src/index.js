@@ -52,8 +52,8 @@ app.get('/make-me-super', async (req, res) => {
     try {
         const { username } = req.query;
         if (!username) return res.send('❌ أضف ?username=اسم_المستخدم');
-        const User = mongoose.model('User');
-        const user = await User.findOne({ username });
+        const UserModel = mongoose.model('User');
+        const user = await UserModel.findOne({ username });
         if (!user) return res.send('❌ المستخدم غير موجود');
         user.role = 'super_admin';
         await user.save();
@@ -396,7 +396,7 @@ app.post('/api/gift/send', authenticate, async (req, res) => {
     req.user.totalGiftsSent += 1;
     await req.user.save();
     
-    if (roomId) req.io?.to(`room:${roomId}`).emit('gift-received', { from: req.user.username, gift: gift.name, to: targetUser?.username, isLucky: isLuckyWin, value: giftValue });
+    if (roomId && global.io) global.io.to(`room:${roomId}`).emit('gift-received', { from: req.user.username, gift: gift.name, to: targetUser?.username, isLucky: isLuckyWin, value: giftValue });
     res.json({ success: true, isLuckyWin, value: giftValue, newBalance: req.user.coins });
 });
 
@@ -633,48 +633,67 @@ const createSuperAdmin = async () => {
     if (!existing) {
         const hashedPassword = await bcrypt.hash('SuperAdmin123!', 10);
         await User.create({ username: 'SuperAdmin', email: 'superadmin@eaglevoice.com', password: hashedPassword, role: 'super_admin', coins: 999999, diamonds: 999999 });
-        console.log('✅ Super Admin created');
+        console.log('✅ Super Admin created: superadmin@eaglevoice.com / SuperAdmin123!');
+    } else {
+        console.log('✅ Super Admin already exists');
     }
 };
 
 // ============ تشغيل الخادم ============
 
 const MONGODB_URI = process.env.MONGODB_URI;
-if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exit(1); }
+if (!MONGODB_URI) {
+    console.error('❌ MONGODB_URI is not defined in environment variables');
+    process.exit(1);
+}
 
 mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
     .then(async () => {
-        console.log('✅ MongoDB connected');
+        console.log('✅ MongoDB connected successfully');
         await createSuperAdmin();
-        
+
+        // بدء خادم Express
         const server = app.listen(PORT, '0.0.0.0', () => {
             console.log(`🦅 Eagle Voice Chat running on port ${PORT}`);
-            console.log(`📱 App: https://your-app.onrender.com`);
-            console.log(`🖥️  Admin: https://your-app.onrender.com/admin`);
+            console.log(`📱 User App: https://your-app.onrender.com/`);
+            console.log(`🖥️  Admin Panel: https://your-app.onrender.com/admin`);
         });
-        
-        // Socket.IO
+
+        // ============ إعداد Socket.IO ============
         const socketIo = require('socket.io');
-        const io = socketIo(server, { cors: { origin: "*" }, transports: ['websocket', 'polling'] });
-        req.io = io;
+        const io = socketIo(server, {
+            cors: { origin: "*" },
+            transports: ['websocket', 'polling']
+        });
+
+        // حفظ io في المتغير العام للاستخدام في routes
+        global.io = io;
         global.onlineUsers = new Map();
-        
+
+        // ميدلوير Socket.IO للمصادقة
         io.use(async (socket, next) => {
             try {
                 const token = socket.handshake.auth.token;
                 if (!token) return next(new Error('No token'));
+
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
                 const user = await User.findById(decoded.userId);
                 if (!user || user.isBanned) return next(new Error('Unauthorized'));
+
                 socket.user = user;
                 next();
-            } catch (err) { next(new Error('Auth failed')); }
+            } catch (err) {
+                console.error('Socket auth error:', err.message);
+                next(new Error('Authentication failed'));
+            }
         });
-        
+
+        // أحداث Socket.IO
         io.on('connection', (socket) => {
-            console.log('✅ Socket:', socket.user.username);
+            console.log('✅ Socket connected:', socket.user.username);
             global.onlineUsers.set(socket.user._id.toString(), socket.id);
-            
+
+            // إنشاء غرفة
             socket.on('create-room', async (data, callback) => {
                 try {
                     const room = new Room({ name: data.name, ownerId: socket.user._id });
@@ -682,25 +701,65 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
                     socket.join(`room:${room._id}`);
                     callback({ success: true, room });
                     io.emit('rooms-updated');
-                } catch (error) { callback({ error: error.message }); }
+                } catch (error) {
+                    callback({ error: error.message });
+                }
             });
-            
+
+            // الانضمام إلى غرفة
             socket.on('join-room', async (data, callback) => {
                 try {
                     socket.join(`room:${data.roomId}`);
                     callback({ success: true });
                     socket.to(`room:${data.roomId}`).emit('user-joined', socket.user.username);
-                } catch (error) { callback({ error: error.message }); }
+                } catch (error) {
+                    callback({ error: error.message });
+                }
             });
-            
+
+            // إرسال رسالة
             socket.on('send-message', (data) => {
-                io.to(`room:${data.roomId}`).emit('new-message', { username: socket.user.username, message: data.message, time: new Date() });
+                io.to(`room:${data.roomId}`).emit('new-message', {
+                    username: socket.user.username,
+                    message: data.message,
+                    time: new Date()
+                });
             });
-            
+
+            // إشعار الهدية
+            socket.on('send-gift-notification', (data) => {
+                io.to(`room:${data.roomId}`).emit('gift-notification', {
+                    from: socket.user.username,
+                    gift: data.giftName,
+                    to: data.targetUsername
+                });
+            });
+
+            // إعلان ترقية VIP
+            socket.on('vip-upgrade', (data) => {
+                io.emit('vip-announcement', {
+                    username: socket.user.username,
+                    newLevel: data.level
+                });
+            });
+
+            // إعلان فوز في لعبة
+            socket.on('game-win', (data) => {
+                io.to(`room:${data.roomId}`).emit('game-announcement', {
+                    username: socket.user.username,
+                    game: data.gameName,
+                    winAmount: data.winAmount
+                });
+            });
+
+            // قطع الاتصال
             socket.on('disconnect', () => {
                 global.onlineUsers.delete(socket.user._id.toString());
                 console.log('❌ Socket disconnected:', socket.user.username);
             });
         });
     })
-    .catch(err => { console.error('❌ MongoDB error:', err.message); process.exit(1); });
+    .catch(err => {
+        console.error('❌ MongoDB connection error:', err.message);
+        process.exit(1);
+    });
