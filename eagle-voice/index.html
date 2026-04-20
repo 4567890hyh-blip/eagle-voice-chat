@@ -61,7 +61,6 @@
 <div class="token-status">
     🔑 <span id="tokenStatusText">جاري التحقق...</span>
     <button onclick="refreshToken()">🔄 تحديث التوكن</button>
-    <button onclick="testAPI()" style="background:#17a2b8; margin-left:5px;">🧪 اختبار API</button>
 </div>
 <div class="sidebar">
     <div class="sidebar-header"><h2>🦅 Eagle Admin</h2></div>
@@ -182,12 +181,6 @@
         } catch(e) { console.error(`Fetch error ${url}:`, e); alert(`خطأ في الاتصال: ${e.message}`); return null; }
     }
 
-    async function testAPI() {
-        const data = await fetchAPI('/api/admin/stats');
-        if (data) alert(`✅ API يعمل\n${JSON.stringify(data.stats || data).substring(0, 200)}`);
-        else alert('❌ فشل الاتصال بواجهة API');
-    }
-
     async function loadUserInfo() { const data = await fetchAPI('/api/user'); if (data?.user) { currentUser = data.user; document.getElementById('sidebarUsername').innerText = currentUser.username; document.getElementById('sidebarRole').innerHTML = currentUser.role === 'super_admin' ? '<span class="badge badge-super">سوبر ادمن</span>' : (currentUser.role === 'admin' ? '<span class="badge badge-admin">ادمن</span>' : 'مستخدم'); } }
     async function loadStats() { const data = await fetchAPI('/api/admin/stats'); if (data?.stats) { document.getElementById('statsContainer').innerHTML = `<div class="stat-card"><h3>${data.stats.totalUsers||0}</h3><p>المستخدمين</p></div><div class="stat-card"><h3>${data.stats.onlineUsers||0}</h3><p>متصلون</p></div><div class="stat-card"><h3>${data.stats.totalCoins||0}</h3><p>العملات</p></div><div class="stat-card"><h3>${data.stats.totalRevenue||0} $</h3><p>الإيرادات</p></div>`; } }
 
@@ -268,11 +261,21 @@
     async function giveVIPToUser(userId, username) { const level = prompt(`مستوى VIP (1-5):`); if (!level || level<1 || level>5) return; const res = await fetchAPI('/api/admin/give-vip', { method: 'POST', body: JSON.stringify({ userId, level: parseInt(level), days: 30 }) }); alert(res?.message || 'تمت الترقية'); loadUsers(); loadVIPRanking(); }
     async function removeVIP() { const username = document.getElementById('vipUsername').value; if (!username) return alert('أدخل اسم المستخدم'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { await fetchAPI(`/api/admin/remove-vip/${data.users[0]._id}`, { method: 'POST' }); alert('تم سحب VIP'); loadUsers(); loadVIPRanking(); } }
     async function removeVIPFromUser(userId) { await fetchAPI(`/api/admin/remove-vip/${userId}`, { method: 'POST' }); alert('تم سحب VIP'); loadUsers(); loadVIPRanking(); }
-    async function loadVIPRanking() { const data = await fetchAPI('/api/vip/ranking'); if (data?.length) { let html = '<table class="data-table"><thead><tr><th>#</th><th>المستخدم</th><th>المستوى</th><th>العملات</th></tr></thead><tbody>'; data.forEach((u,i) => html += `<td><td>${i+1}</td><td>${u.username}</td><td>VIP ${u.vipLevel}</td><td>💰 ${u.coins}</td></tr>`); html += '</tbody></table>'; document.getElementById('vipRanking').innerHTML = html; } else document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>'; }
+    async function loadVIPRanking() { const data = await fetchAPI('/api/vip/ranking'); if (data?.length) { let html = '<table class="data-table"><thead><tr><th>#</th><th>المستخدم</th><th>المستوى</th><th>العملات</th></tr></thead><tbody>'; data.forEach((u,i) => html += `<td>
+                        <td>${i+1}</td>
+                        <td>${u.username}</td>
+                        <td>VIP ${u.vipLevel}</td>
+                        <td>💰 ${u.coins}</td>
+                    </tr>`); html += '</tbody></tr>'; document.getElementById('vipRanking').innerHTML = html; } else document.getElementById('vipRanking').innerHTML = '<p class="loading">لا يوجد أعضاء VIP</p>'; }
 
     // Warnings
     async function addWarning() { const username = document.getElementById('warnUsername').value; const reason = document.getElementById('warnReason').value; if (!username || !reason) return alert('أدخل البيانات'); const data = await fetchAPI(`/api/admin/users?search=${username}`); if (data?.users?.[0]) { const res = await fetchAPI('/api/admin/warnings/add', { method: 'POST', body: JSON.stringify({ userId: data.users[0]._id, reason }) }); alert(`تم إضافة تحذير. المخاطرة: ${res?.riskScore}%`); loadUsers(); } }
-    async function loadWarnings() { const data = await fetchAPI('/api/admin/users'); if (data?.users) { let html = '<table class="data-table"><thead><tr><th>المستخدم</th><th>المخاطرة</th><th>التحذيرات</th><th>الحالة</th></tr></thead><tbody>'; for (const u of data.users.filter(u=>u.riskScore>0)) html += `<tr><td>${u.username}</td><td style="color:${u.riskScore>70?'#f44':'#fa0'}">${u.riskScore}%</td><td>${u.warnings?.length||0}</td><td>${u.isBanned?'محظور':'نشط'}</td>`; html += '</tbody></table>'; document.getElementById('warningsList').innerHTML = html; } }
+    async function loadWarnings() { const data = await fetchAPI('/api/admin/users'); if (data?.users) { let html = '<table class="data-table"><thead><td><th>المستخدم</th><th>المخاطرة</th><th>التحذيرات</th><th>الحالة</th></tr></thead><tbody>'; for (const u of data.users.filter(u=>u.riskScore>0)) html += `<tr>
+                        <td>${u.username}</td>
+                        <td style="color:${u.riskScore>70?'#f44':'#fa0'}">${u.riskScore}%</td>
+                        <td>${u.warnings?.length||0}</td>
+                        <td>${u.isBanned?'محظور':'نشط'}</td>
+                    </tr>`; html += '</tbody></table>'; document.getElementById('warningsList').innerHTML = html; } }
 
     // Gifts & Frames
     async function loadGifts() { const data = await fetchAPI('/api/admin/gifts'); if (data) { let html = ''; for (const g of data) html += `<tr>
@@ -297,7 +300,7 @@
         <td>${w.status === 'pending' ? '⏳ قيد المراجعة' : '✅ مكتمل'}</td>
         <td>${new Date(w.createdAt).toLocaleDateString()}</td>
         <td>${w.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveWithdrawal('${w._id}')">موافقة</button>` : '-'}</td>
-    </tr>`; document.querySelector('#withdrawalsTable tbody').innerHTML = html; } else document.querySelector('#withdrawalsTable tbody').innerHTML = '<tr><td colspan="5" class="loading">لا توجد طلبات或是`; }
+    </table>`; document.querySelector('#withdrawalsTable tbody').innerHTML = html; } else document.querySelector('#withdrawalsTable tbody').innerHTML = '<tr><td colspan="5" class="loading">لا توجد طلبات或是`; }
     async function approveWithdrawal(id) { if (!confirm('موافقة على طلب السحب؟')) return; await fetchAPI(`/api/admin/withdrawals/${id}/approve`, { method: 'POST' }); loadWithdrawals(); }
 
     // Agencies
@@ -306,7 +309,7 @@
         <td>${a.name}</td>
         <td>${a.ownerId?.username||'-'}</td>
         <td>${new Date(a.createdAt).toLocaleDateString()}</td>
-    </tr>`; document.querySelector('#agenciesTable tbody').innerHTML = html; } else document.querySelector('#agenciesTable tbody').innerHTML = '<tr><td colspan="3" class="loading">لا توجد وكالات或是`; }
+    </tr>`; document.querySelector('#agenciesTable tbody').innerHTML = html; } else document.querySelector('#agenciesTable tbody').innerHTML = '<td><td colspan="3" class="loading">لا توجد وكالات或是`; }
 
     // Splash
     async function addSplash() { const url = document.getElementById('splashImage').value; const duration = document.getElementById('splashDuration').value; if (!url) return alert('أدخل رابط الصورة'); await fetchAPI('/api/admin/splash', { method: 'POST', body: JSON.stringify({ imageUrl: url, duration: parseInt(duration), isActive: true }) }); alert('تمت الإضافة'); loadSplash(); }
@@ -324,11 +327,11 @@
     async function deleteBanner(id) { if (!confirm('حذف البانر؟')) return; await fetchAPI(`/api/admin/banners/${id}`, { method: 'DELETE' }); loadBanners(); }
 
     // Packages & Advanced stats
-    async function loadPackages() { const data = await fetchAPI('/api/packages'); if (data) { let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></tr></thead><tbody>'; for (const [key, pkg] of Object.entries(data)) html += `<tr>
+    async function loadPackages() { const data = await fetchAPI('/api/packages'); if (data) { let html = '<table class="data-table"><thead><tr><th>الباقة</th><th>السعر</th><th>العملات</th></td></thead><tbody>'; for (const [key, pkg] of Object.entries(data)) html += `<tr>
         <td>${key.replace('_',' ')}</td>
         <td>$${pkg.price}</td>
         <td>💰 ${pkg.coins}</td>
-    </tr>`; html += '</tbody></table>'; document.getElementById('packagesList').innerHTML = html; } else document.getElementById('packagesList').innerHTML = '<p class="loading">لا توجد باقات</p>'; }
+    </tr>`; html += '</tbody></tr>'; document.getElementById('packagesList').innerHTML = html; } else document.getElementById('packagesList').innerHTML = '<p class="loading">لا توجد باقات</p>'; }
     async function savePackages() { alert('تم حفظ الإعدادات (تحديث الأسعار يتم من قاعدة البيانات)'); }
     async function loadAdvancedStats() { const data = await fetchAPI('/api/admin/advanced-stats'); if (data) document.getElementById('advancedStats').innerHTML = `<div class="stat-card"><h3>${data.users?.totalUsers||0}</h3><p>المستخدمين</p></div><div class="stat-card"><h3>${data.vip?.total||0}</h3><p>VIP</p></div><div class="stat-card"><h3>${data.gifts?.totalSent||0}</h3><p>الهدايا</p></div><div class="stat-card"><h3>${data.moderation?.bannedUsers||0}</h3><p>محظورين</p></div>`; }
 
