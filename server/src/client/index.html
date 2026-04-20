@@ -1,140 +1,121 @@
-<!DOCTYPE html>
-<html dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <title>Eagle Voice Chat</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
-        body { background: linear-gradient(135deg, #0f0c29, #302b63); color: white; min-height: 100vh; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; }
-        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 20px; }
-        h1 { text-align: center; margin-bottom: 20px; }
-        input, button { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 10px; }
-        button { background: #e94560; color: white; cursor: pointer; font-weight: bold; }
-        .room { background: rgba(255,255,255,0.1); padding: 12px; margin: 8px 0; border-radius: 10px; cursor: pointer; }
-        .chat-box { height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
-        .message-self { background: #e94560; text-align: right; padding: 8px; margin: 5px; border-radius: 8px; }
-        .message-other { background: rgba(255,255,255,0.1); padding: 8px; margin: 5px; border-radius: 8px; }
-        .message-system { background: rgba(255,193,7,0.3); text-align: center; padding: 5px; margin: 5px; border-radius: 8px; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🦅 Eagle Voice Chat</h1>
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const cors = require('cors');
+const path = require('path');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static('client'));
+
+// ✅ هذا السطر الجديد يحدد مسار الملف الرئيسي
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../client/index.html'));
+});
+
+const PORT = process.env.PORT || 3000;
+
+// ============ Models ============
+const UserSchema = new mongoose.Schema({
+    username: { type: String, unique: true, required: true },
+    email: { type: String, unique: true, sparse: true },
+    password: { type: String, required: true },
+    role: { type: String, enum: ['user', 'admin', 'super_admin'], default: 'user' },
+    coins: { type: Number, default: 0 },
+    diamonds: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const RoomSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    ownerId: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', UserSchema);
+const Room = mongoose.model('Room', RoomSchema);
+
+// ============ API Routes ============
+app.post('/api/register', async (req, res) => {
+    try {
+        const { username, password, email } = req.body;
+        const existingUser = await User.findOne({ username });
+        if (existingUser) return res.status(400).json({ error: 'اسم المستخدم موجود' });
         
-        <div id="loginSection" class="card">
-            <h3>تسجيل الدخول</h3>
-            <input type="text" id="loginUsername" placeholder="اسم المستخدم">
-            <input type="password" id="loginPassword" placeholder="كلمة السر">
-            <button onclick="login()">دخول</button>
-            <button onclick="showRegister()" style="background:#6c757d">إنشاء حساب</button>
-        </div>
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = new User({ username, email, password: hashedPassword });
+        await user.save();
         
-        <div id="registerSection" class="card" style="display:none">
-            <h3>إنشاء حساب</h3>
-            <input type="text" id="regUsername" placeholder="اسم المستخدم">
-            <input type="password" id="regPassword" placeholder="كلمة السر">
-            <input type="email" id="regEmail" placeholder="البريد الإلكتروني">
-            <button onclick="register()">تسجيل</button>
-            <button onclick="showLogin()" style="background:#6c757d">عودة</button>
-        </div>
-        
-        <div id="appSection" style="display:none">
-            <div class="card" id="userInfo"></div>
-            <div class="card">
-                <h3>🏠 الغرف</h3>
-                <div id="roomsList"></div>
-                <input type="text" id="newRoomName" placeholder="اسم الغرفة الجديدة">
-                <button onclick="createRoom()">➕ إنشاء غرفة</button>
-            </div>
-            <div class="card" id="chatSection" style="display:none">
-                <h3 id="currentRoomTitle">💬 الغرفة</h3>
-                <div class="chat-box" id="messages"></div>
-                <input type="text" id="messageInput" placeholder="اكتب رسالة...">
-                <button onclick="sendMessage()">📨 إرسال</button>
-                <button onclick="leaveRoom()" style="background:#dc3545">🚪 مغادرة</button>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        let token = localStorage.getItem('token');
-        let currentUser = null;
-        
-        async function login() {
-            const username = document.getElementById('loginUsername').value;
-            const password = document.getElementById('loginPassword').value;
-            
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            const data = await res.json();
-            
-            if (data.success) {
-                token = data.token;
-                localStorage.setItem('token', token);
-                currentUser = data.user;
-                document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('appSection').style.display = 'block';
-                document.getElementById('userInfo').innerHTML = `👋 ${currentUser.username} | 💰 ${currentUser.coins}`;
-                loadRooms();
-            } else alert(data.error);
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+        res.json({ success: true, token, user: { id: user._id, username: user.username, coins: user.coins } });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ error: 'بيانات غير صحيحة' });
         }
         
-        async function register() {
-            const data = {
-                username: document.getElementById('regUsername').value,
-                password: document.getElementById('regPassword').value,
-                email: document.getElementById('regEmail').value
-            };
-            const res = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
-            if (result.success) { alert('تم التسجيل بنجاح'); showLogin(); }
-            else alert(result.error);
-        }
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+        res.json({ success: true, token, user: { id: user._id, username: user.username, coins: user.coins } });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/rooms', async (req, res) => {
+    const rooms = await Room.find().sort({ createdAt: -1 });
+    res.json(rooms);
+});
+
+app.post('/api/rooms', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
         
-        async function loadRooms() {
-            const res = await fetch('/api/rooms');
-            const rooms = await res.json();
-            document.getElementById('roomsList').innerHTML = rooms.map(r => `<div class="room" onclick="joinRoom('${r._id}')">🏠 ${r.name}</div>`).join('');
-        }
-        
-        function createRoom() {
-            const name = document.getElementById('newRoomName').value;
-            if (!name) return;
-            fetch('/api/rooms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ name })
-            }).then(() => loadRooms());
-        }
-        
-        function joinRoom(roomId) {
-            document.getElementById('chatSection').style.display = 'block';
-            document.getElementById('currentRoomTitle').innerHTML = '💬 الغرفة';
-        }
-        
-        function sendMessage() {
-            const msg = document.getElementById('messageInput').value;
-            if (!msg) return;
-            // سيتم إضافة Socket.IO لاحقاً
-            document.getElementById('messageInput').value = '';
-        }
-        
-        function leaveRoom() {
-            document.getElementById('chatSection').style.display = 'none';
-        }
-        
-        function showRegister() { document.getElementById('loginSection').style.display = 'none'; document.getElementById('registerSection').style.display = 'block'; }
-        function showLogin() { document.getElementById('registerSection').style.display = 'none'; document.getElementById('loginSection').style.display = 'block'; }
-        
-        if (token) { login(); }
-    </script>
-</body>
-</html>
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const room = new Room({ name: req.body.name, ownerId: decoded.userId });
+        await room.save();
+        res.json({ success: true, room });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ Create Super Admin ============
+const createSuperAdmin = async () => {
+    const existing = await User.findOne({ role: 'super_admin' });
+    if (!existing) {
+        const hashedPassword = await bcrypt.hash('SuperAdmin123!', 10);
+        await User.create({
+            username: 'SuperAdmin',
+            email: 'superadmin@eaglevoice.com',
+            password: hashedPassword,
+            role: 'super_admin',
+            coins: 999999
+        });
+        console.log('✅ Super Admin created');
+    }
+};
+
+// ============ Start Server ============
+mongoose.connect(process.env.MONGODB_URI, { dbName: 'eagle-voice-chat' })
+    .then(async () => {
+        console.log('✅ MongoDB connected');
+        await createSuperAdmin();
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🦅 Eagle Voice Chat running on port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error('❌ MongoDB error:', err.message);
+        process.exit(1);
+    });
