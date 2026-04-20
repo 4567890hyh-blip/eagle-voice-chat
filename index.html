@@ -1,48 +1,111 @@
 <!DOCTYPE html>
-<html>
+<html dir="rtl">
 <head>
-    <title>Eagle Voice - Test</title>
     <meta charset="UTF-8">
+    <title>Eagle Voice - Admin</title>
+    <style>
+        body { font-family: system-ui; background: #0a0a0f; color: white; padding: 20px; }
+        button { background: #e94560; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 8px; cursor: pointer; }
+        pre { background: #1a1a2e; padding: 15px; border-radius: 10px; overflow-x: auto; }
+        .error { color: #ff4444; }
+        .success { color: #00ff00; }
+    </style>
 </head>
 <body>
-    <h1>🦅 اختبار اتصال لوحة التحكم</h1>
-    <button onclick="testConnection()">اختبار الاتصال بالخادم</button>
-    <pre id="result">اضغط على الزر لاختبار الاتصال...</pre>
+    <h1>🦅 Eagle Voice - لوحة التحكم</h1>
+    
+    <div id="status"></div>
+    
+    <button onclick="fixToken()">🔧 إصلاح التوكن</button>
+    <button onclick="testConnection()">📡 اختبار الاتصال</button>
+    <button onclick="logout()">🚪 تسجيل خروج</button>
+    
+    <pre id="result">اضغط على زر "إصلاح التوكن" أولاً...</pre>
 
     <script>
-        const token = localStorage.getItem('token');
+        let token = localStorage.getItem('token');
         
-        if (!token) {
-            document.getElementById('result').innerHTML = '❌ لا يوجد توكن. الرجاء تسجيل الدخول أولاً.';
+        function showStatus(message, isError = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="${isError ? 'error' : 'success'}">${message}</div>`;
+            setTimeout(() => { statusDiv.innerHTML = ''; }, 5000);
+        }
+        
+        async function fixToken() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'جاري إصلاح التوكن...\n';
+            
+            // حذف التوكن القديم
+            localStorage.removeItem('token');
+            token = null;
+            resultDiv.innerHTML += '✅ تم حذف التوكن القديم\n';
+            
+            // طلب تسجيل دخول جديد
+            resultDiv.innerHTML += '\n⚠️ الرجاء تسجيل الدخول مرة أخرى من الصفحة الرئيسية\n';
+            resultDiv.innerHTML += 'سيتم تحويلك إلى صفحة تسجيل الدخول خلال 3 ثواني...\n';
+            
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
         }
         
         async function testConnection() {
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = 'جاري الاتصال...';
+            resultDiv.innerHTML = 'جاري اختبار الاتصال...\n';
+            
+            token = localStorage.getItem('token');
+            
+            if (!token) {
+                resultDiv.innerHTML = '❌ لا يوجد توكن. اضغط على "إصلاح التوكن" أولاً.';
+                return;
+            }
             
             try {
-                // اختبار 1: الاتصال الأساسي
-                const testRes = await fetch('/api/test');
-                const testData = await testRes.json();
-                resultDiv.innerHTML = '✅ الخادم يعمل: ' + JSON.stringify(testData, null, 2) + '\n\n';
-                
-                // اختبار 2: جلب بيانات المستخدم
+                // اختبار التوكن
                 const userRes = await fetch('/api/user', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const userData = await userRes.json();
-                resultDiv.innerHTML += '✅ بيانات المستخدم: ' + JSON.stringify(userData, null, 2) + '\n\n';
                 
-                // اختبار 3: جلب الإحصائيات
+                if (userData.error) {
+                    resultDiv.innerHTML = `❌ التوكن غير صالح: ${userData.error}\n\nالرجاء الضغط على "إصلاح التوكن"`;
+                    return;
+                }
+                
+                resultDiv.innerHTML = `✅ مرحباً ${userData.user.username}\n`;
+                resultDiv.innerHTML += `📊 الدور: ${userData.user.role}\n\n`;
+                
+                // جلب الإحصائيات
                 const statsRes = await fetch('/api/admin/stats', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const statsData = await statsRes.json();
-                resultDiv.innerHTML += '✅ الإحصائيات: ' + JSON.stringify(statsData, null, 2);
+                
+                if (statsData.stats) {
+                    resultDiv.innerHTML += `📈 إجمالي المستخدمين: ${statsData.stats.totalUsers}\n`;
+                    resultDiv.innerHTML += `🟢 المتصلون الآن: ${statsData.stats.onlineUsers}\n`;
+                    resultDiv.innerHTML += `💰 إجمالي العملات: ${statsData.stats.totalCoins}\n`;
+                    resultDiv.innerHTML += `💵 إجمالي الإيرادات: ${statsData.stats.totalRevenue} $\n`;
+                }
+                
+                showStatus('✅ الاتصال ناجح!');
                 
             } catch (error) {
                 resultDiv.innerHTML = '❌ خطأ في الاتصال: ' + error.message;
+                showStatus('❌ فشل الاتصال', true);
             }
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+        }
+        
+        // فحص التوكن عند تحميل الصفحة
+        if (token) {
+            testConnection();
+        } else {
+            document.getElementById('result').innerHTML = '⚠️ لا يوجد توكن. اضغط على "إصلاح التوكن"';
         }
     </script>
 </body>
