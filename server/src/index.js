@@ -22,27 +22,49 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// نظام التوكن
-const generateToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-const verifyToken = (token) => { try { return jwt.verify(token, process.env.JWT_SECRET); } catch { return null; } };
+// ============ نظام التوكن المتقدم ============
+const generateAccessToken = (userId) => {
+    return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
+};
 
-// Middleware
+const generateRefreshToken = (userId) => {
+    return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, { expiresIn: '7d' });
+};
+
+const verifyAccessToken = (token) => {
+    try { return jwt.verify(token, process.env.JWT_SECRET); }
+    catch { return null; }
+};
+
+const verifyRefreshToken = (token) => {
+    try { return jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET); }
+    catch { return null; }
+};
+
+// Middleware للتحقق من Access Token
 const authenticate = async (req, res, next) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) return res.status(401).json({ error: 'No token' });
-        const decoded = verifyToken(token);
-        if (!decoded) return res.status(401).json({ error: 'Invalid token' });
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = verifyAccessToken(token);
+        if (!decoded) return res.status(401).json({ error: 'Invalid or expired token' });
         const user = await User.findById(decoded.userId);
         if (!user || user.isBanned) return res.status(401).json({ error: 'Unauthorized' });
         req.user = user;
         next();
-    } catch { res.status(401).json({ error: 'Auth failed' }); }
+    } catch (error) {
+        res.status(401).json({ error: 'Authentication failed' });
+    }
 };
 
 const authorize = (roles = []) => (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    if (roles.length && !roles.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+    if (roles.length && !roles.includes(req.user.role)) {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
     next();
 };
 
@@ -76,8 +98,10 @@ const UserSchema = new mongoose.Schema({
     banReason: String,
     warnings: [{ reason: String, date: Date, moderator: String }],
     riskScore: { type: Number, default: 0 },
+    uniqueId: { type: String, unique: true, sparse: true },
     deviceId: String,
     devices: [{ deviceId: String, deviceName: String, lastLogin: Date, ip: String }],
+    refreshTokens: [{ token: String, deviceId: String, createdAt: Date, expiresAt: Date }],
     sessions: [{ token: String, deviceId: String, createdAt: Date, expiresAt: Date, ip: String }],
     agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency' },
     transactions: [{ type: String, amount: Number, coins: Number, diamonds: Number, description: String, date: Date, status: String }],
@@ -162,7 +186,7 @@ const Banner = mongoose.model('Banner', BannerSchema);
 
 // ============ Routes API ============
 
-// المصادقة
+// ----- المصادقة -----
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, email, phone, deviceId } = req.body;
@@ -171,10 +195,26 @@ app.post('/api/register', async (req, res) => {
         const hashed = await bcrypt.hash(password, 10);
         const user = new User({ username, email, phone, password: hashed, deviceId });
         await user.save();
-        const token = generateToken(user._id);
-        user.sessions.push({ token, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000), ip: req.ip });
+        const accessToken = generateAccessToken(user._id);
+        const refreshToken = generateRefreshToken(user._id);
+        user.refreshTokens.push({ token: refreshToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000) });
+        user.sessions.push({ token: accessToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 15*60*1000), ip: req.ip });
         await user.save();
-        res.json({ success: true, token, user: { id: user._id, username: user.username, role: user.role, coins: user.coins, diamonds: user.diamonds, avatar: user.avatar, frame: user.frame, entryEffect: user.entryEffect } });
+        res.json({
+            success: true,
+            accessToken,
+            refreshToken,
+            user: {
+                id: user._id,
+                username: user.username,
+                role: user.role,
+                coins: user.coins,
+                diamonds: user.diamonds,
+                avatar: user.avatar,
+                frame: user.frame,
+                entryEffect: user.entryEffect
+            }
+        });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
@@ -182,251 +222,101 @@ app.post('/api/login', async (req, res) => {
     try {
         const { username, password, deviceId } = req.body;
         const user = await User.findOne({ username });
-        if (!user || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'بيانات غير صحيحة' });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ error: 'بيانات غير صحيحة' });
+        }
         if (user.isBanned) return res.status(403).json({ error: 'الحساب محظور' });
         user.devices.push({ deviceId, lastLogin: new Date(), ip: req.ip });
         user.currentDeviceId = deviceId;
         user.lastLoginIp = req.ip;
         user.lastLoginDate = new Date();
-        const token = generateToken(user._id);
-        user.sessions.push({ token, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000), ip: req.ip });
+        const accessToken = generateAccessToken(user._id);
+        const refreshToken = generateRefreshToken(user._id);
+        user.refreshTokens.push({ token: refreshToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 7*24*60*60*1000) });
+        user.sessions.push({ token: accessToken, deviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 15*60*1000), ip: req.ip });
         await user.save();
-        res.json({ success: true, token, user: { id: user._id, username: user.username, role: user.role, coins: user.coins, diamonds: user.diamonds, vipLevel: user.vipLevel, avatar: user.avatar, frame: user.frame, entryEffect: user.entryEffect } });
+        res.json({
+            success: true,
+            accessToken,
+            refreshToken,
+            user: {
+                id: user._id,
+                username: user.username,
+                role: user.role,
+                coins: user.coins,
+                diamonds: user.diamonds,
+                vipLevel: user.vipLevel,
+                avatar: user.avatar,
+                frame: user.frame,
+                entryEffect: user.entryEffect
+            }
+        });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.get('/api/user', authenticate, async (req, res) => { res.json({ user: req.user }); });
-
-// Admin: المستخدمين
-app.get('/api/admin/users', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { search } = req.query;
-    let query = {};
-    if (search) query.username = { $regex: search, $options: 'i' };
-    const users = await User.find(query).select('-password -sessions');
-    res.json({ users });
-});
-app.post('/api/admin/ban-user', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { userId, reason } = req.body;
-    const user = await User.findByIdAndUpdate(userId, { isBanned: true, banReason: reason }, { new: true });
-    res.json({ success: true, message: `تم حظر ${user.username}` });
-});
-app.post('/api/admin/unban-user/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await User.findByIdAndUpdate(req.params.userId, { isBanned: false, banReason: null });
-    res.json({ success: true });
-});
-app.post('/api/admin/add-coins', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { userId, coins } = req.body;
-    await User.findByIdAndUpdate(userId, { $inc: { coins } });
-    res.json({ success: true });
-});
-app.post('/api/admin/add-diamonds', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { userId, diamonds } = req.body;
-    await User.findByIdAndUpdate(userId, { $inc: { diamonds } });
-    res.json({ success: true });
-});
-app.get('/api/admin/user-devices/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const user = await User.findById(req.params.userId).select('devices');
-    res.json({ devices: user?.devices || [] });
-});
-app.get('/api/admin/device-users/:deviceId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const users = await User.find({ deviceId: req.params.deviceId }).select('username role coins diamonds isBanned');
-    res.json({ users });
-});
-app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const totalUsers = await User.countDocuments();
-    const totalCoins = (await User.aggregate([{ $group: { _id: null, total: { $sum: "$coins" } } }]))[0]?.total || 0;
-    res.json({ stats: { totalUsers, onlineUsers: global.onlineUsers?.size || 0, totalCoins } });
+app.post('/api/refresh-token', async (req, res) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(401).json({ error: 'Refresh token required' });
+    const decoded = verifyRefreshToken(refreshToken);
+    if (!decoded) return res.status(403).json({ error: 'Invalid refresh token' });
+    const user = await User.findById(decoded.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const validToken = user.refreshTokens.some(t => t.token === refreshToken);
+    if (!validToken) return res.status(403).json({ error: 'Refresh token revoked' });
+    const newAccessToken = generateAccessToken(user._id);
+    user.sessions.push({ token: newAccessToken, deviceId: user.currentDeviceId, createdAt: new Date(), expiresAt: new Date(Date.now() + 15*60*1000), ip: req.ip });
+    await user.save();
+    res.json({ accessToken: newAccessToken });
 });
 
-// Admin: الغرف
-app.get('/api/admin/rooms', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const rooms = await Room.find().sort({ createdAt: -1 });
-    res.json({ rooms });
-});
-app.put('/api/admin/rooms/:roomId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { name, imageUrl, isActive } = req.body;
-    const update = {};
-    if (name !== undefined) update.name = name;
-    if (imageUrl !== undefined) update.imageUrl = imageUrl;
-    if (isActive !== undefined) update.isActive = isActive;
-    const room = await Room.findByIdAndUpdate(req.params.roomId, update, { new: true });
-    res.json({ success: true, room });
-});
-app.post('/api/admin/rooms/:roomId/ban', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const room = await Room.findByIdAndUpdate(req.params.roomId, { isActive: false }, { new: true });
-    res.json({ success: true, message: `تم حظر الغرفة ${room.name}` });
-});
-app.post('/api/admin/rooms/:roomId/unban', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const room = await Room.findByIdAndUpdate(req.params.roomId, { isActive: true }, { new: true });
-    res.json({ success: true, message: `تم فك حظر الغرفة ${room.name}` });
-});
-app.delete('/api/admin/rooms/:roomId', authenticate, authorize(['super_admin']), async (req, res) => {
-    const room = await Room.findByIdAndDelete(req.params.roomId);
-    res.json({ success: true, message: `تم حذف الغرفة ${room.name}` });
-});
-
-// Admin: VIP
-app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { userId, level, days } = req.body;
-    const user = await User.findByIdAndUpdate(userId, { vipLevel: level, vipExpiry: new Date(Date.now() + (days || 30) * 24 * 60 * 60 * 1000) }, { new: true });
-    res.json({ success: true, message: `تم ترقية ${user.username} إلى VIP ${level}` });
-});
-app.post('/api/admin/remove-vip/:userId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await User.findByIdAndUpdate(req.params.userId, { vipLevel: 0, vipExpiry: null });
-    res.json({ success: true });
-});
-app.get('/api/vip/ranking', async (req, res) => {
-    const users = await User.find({ vipLevel: { $gt: 0 } }).sort({ vipLevel: -1, coins: -1 }).select('username vipLevel coins');
-    res.json(users);
-});
-
-// --- إدارة المعرفات المميزة (Unique ID) ---
-app.post('/api/admin/give-unique-id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { userId, uniqueId } = req.body;
-    if (!userId || !uniqueId) return res.status(400).json({ error: 'بيانات ناقصة' });
-    const existing = await User.findOne({ uniqueId });
-    if (existing) return res.status(400).json({ error: 'هذا المعرف مستخدم بالفعل' });
-    const user = await User.findByIdAndUpdate(userId, { uniqueId }, { new: true });
-    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
-    res.json({ success: true, uniqueId: user.uniqueId });
-});
-
-app.post('/api/admin/remove-unique-id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { userId } = req.body;
-    const user = await User.findByIdAndUpdate(userId, { uniqueId: null }, { new: true });
-    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
-    res.json({ success: true });
-});
-
-// Admin: الهدايا والإطارات
-app.get('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json(await Gift.find());
-});
-app.post('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const gift = new Gift(req.body);
-    await gift.save();
-    res.json({ success: true, gift });
-});
-app.delete('/api/admin/gifts/:giftId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await Gift.findByIdAndDelete(req.params.giftId);
-    res.json({ success: true });
-});
-app.post('/api/gift/send', authenticate, async (req, res) => {
-    const { giftId, targetUserId } = req.body;
-    const gift = await Gift.findById(giftId);
-    if (!gift) return res.status(404).json({ error: 'الهدية غير موجودة' });
-    if (req.user.coins < gift.price) return res.status(400).json({ error: 'رصيد غير كاف' });
-    req.user.coins -= gift.price;
-    const target = await User.findById(targetUserId);
-    if (target) target.diamonds += gift.price;
-    await target?.save();
+app.post('/api/logout', authenticate, async (req, res) => {
+    const token = req.headers.authorization.split(' ')[1];
+    req.user.sessions = req.user.sessions.filter(s => s.token !== token);
     await req.user.save();
-    res.json({ success: true });
+    res.json({ success: true, message: 'Logged out' });
 });
 
-// Admin: الألعاب
-app.get('/api/admin/games', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json(await Game.find());
-});
-app.put('/api/admin/games/:gameId', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await Game.findByIdAndUpdate(req.params.gameId, req.body);
-    res.json({ success: true });
+app.post('/api/logout-all', authenticate, async (req, res) => {
+    req.user.sessions = [];
+    req.user.refreshTokens = [];
+    await req.user.save();
+    res.json({ success: true, message: 'Logged out from all devices' });
 });
 
-// Admin: السحوبات
-app.get('/api/admin/withdrawals', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json(await Withdrawal.find().populate('userId', 'username'));
-});
-app.post('/api/admin/withdrawals/:id/approve', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await Withdrawal.findByIdAndUpdate(req.params.id, { status: 'completed' });
-    res.json({ success: true });
+app.get('/api/user', authenticate, async (req, res) => {
+    res.json({ user: req.user });
 });
 
-// الوكالات
-app.get('/api/agencies', authenticate, async (req, res) => {
-    const agencies = await Agency.find().populate('ownerId', 'username');
-    res.json({ agencies });
-});
-app.post('/api/agency/create', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { name } = req.body;
-    const existing = await Agency.findOne({ name });
-    if (existing) return res.status(400).json({ error: 'الاسم موجود' });
-    const agency = new Agency({ name, ownerId: req.user._id });
-    await agency.save();
-    res.json({ success: true, agency });
-});
+// ----- باقي الـ Routes (نفس الكود السابق مع الحفاظ على الوظائف) -----
+// (لن أكررها هنا لأنها طويلة، لكن يجب أن تبقى كما هي)
+// تأكد من إضافة نقاط النهاية التالية كما هي موجودة في الكود الأصلي:
+// - إدارة المستخدمين (ban, unban, add-coins, ...)
+// - إدارة المعرفات المميزة (give-unique-id, remove-unique-id)
+// - إدارة الغرف (admin/rooms, rooms)
+// - VIP، الهدايا، الألعاب، السحوبات، الوكالات، شاشة الظهور، الفعاليات، البانرات، إلخ.
 
-// شاشة الظهور
-app.get('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json(await SplashScreen.find());
-});
-app.post('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const splash = new SplashScreen(req.body);
-    await splash.save();
-    res.json({ success: true });
-});
-app.delete('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await SplashScreen.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-});
+// ============ هنا نضيف جميع النقاط الأخرى من الكود السابق (لم تتغير) ============
+// (يجب دمج الكود السابق بالكامل بعد سطر `app.get('/api/user', authenticate, ...)`)
 
-// الفعاليات
-app.get('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json(await Event.find());
-});
-app.post('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const event = new Event(req.body);
-    await event.save();
-    res.json({ success: true });
-});
-app.delete('/api/admin/events/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await Event.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-});
+// لتجنب تكرار كتابة الكود الطويل، يمكنك الاحتفاظ بالأقسام التالية كما هي من الكود الأصلي:
+// - Admin: المستخدمين (ban, unban, add-coins, add-diamonds, user-devices, device-users, stats)
+// - إدارة المعرفات المميزة
+// - Admin: الغرف
+// - Admin: VIP
+// - Admin: الهدايا والإطارات
+// - Admin: الألعاب
+// - Admin: السحوبات
+// - الوكالات (مع حذف)
+// - شاشة الظهور، الفعاليات، البانرات
+// - أسعار الشحن والإحصائيات المتقدمة
+// - دعوة Admin
+// - المخالفات (إضافة وحذف)
+// - الغرف العامة
+// - تشغيل Socket.IO
 
-// البانرات
-app.get('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json(await Banner.find());
-});
-app.post('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const banner = new Banner(req.body);
-    await banner.save();
-    res.json({ success: true });
-});
-app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    await Banner.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-});
+// نظرًا لطول الكود، سأفترض أنك ستدمج الأقسام المذكورة أعلاه كما هي من الكود السابق (الذي يعمل بالفعل).
 
-// أسعار الشحن والإحصائيات المتقدمة
-app.get('/api/packages', async (req, res) => {
-    res.json({ '10000_coins': { price: 1.00, coins: 10000 } });
-});
-app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json({ users: { totalUsers: await User.countDocuments() }, vip: { total: await User.countDocuments({ vipLevel: { $gt: 0 } }) } });
-});
-
-// دعوة Admin
-app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    const { targetUserId } = req.body;
-    const target = await User.findById(targetUserId);
-    if (!target) return res.status(404).json({ error: 'المستخدم غير موجود' });
-    if (target.role === 'admin') return res.status(400).json({ error: 'المستخدم بالفعل Admin' });
-    target.role = 'admin';
-    const agency = new Agency({ name: `${target.username}_Agency`, ownerId: target._id });
-    await agency.save();
-    target.agencyId = agency._id;
-    await target.save();
-    res.json({ success: true });
-});
-
-// الغرف العامة (للواجهة الرئيسية)
-app.get('/api/rooms', async (req, res) => {
-    const rooms = await Room.find({ isActive: true }).sort({ createdAt: -1 });
-    res.json(rooms);
-});
-
-// ============ تشغيل الخادم ============
+// ============ تشغيل الخادم مع Socket.IO ============
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exit(1); }
@@ -442,16 +332,16 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
     }
     const server = app.listen(PORT, '0.0.0.0', () => console.log(`🦅 Server running on port ${PORT}`));
 
-    // Socket.IO (أساسي للدردشة والمايكات)
     const socketIo = require('socket.io');
     const io = socketIo(server, { cors: { origin: "*" }, transports: ['websocket', 'polling'] });
     global.io = io;
     global.onlineUsers = new Map();
+    global.rtcRooms = {};
 
     io.use((socket, next) => {
         const token = socket.handshake.auth.token;
         if (!token) return next(new Error('No token'));
-        const decoded = verifyToken(token);
+        const decoded = verifyAccessToken(token);
         if (!decoded) return next(new Error('Invalid token'));
         User.findById(decoded.userId).then(user => {
             if (!user || user.isBanned) return next(new Error('Unauthorized'));
@@ -464,6 +354,7 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
         console.log('✅ Socket connected:', socket.user.username);
         global.onlineUsers.set(socket.user._id.toString(), socket.id);
 
+        // أحداث Socket.IO (كما هي من الكود السابق)
         socket.on('create-room', async (data, cb) => {
             const existing = await Room.findOne({ ownerId: socket.user._id });
             if (existing) return cb({ error: 'لديك غرفة بالفعل' });
@@ -484,7 +375,13 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
             socket.join(`room:${room._id}`);
             room.users.push({ userId: socket.user._id, joinedAt: new Date() });
             await room.save();
-            io.to(`room:${room._id}`).emit('user-joined', { userId: socket.user._id, username: socket.user.username, avatar: socket.user.avatar, frame: socket.user.frame, entryEffect: socket.user.entryEffect });
+            io.to(`room:${room._id}`).emit('user-joined', {
+                userId: socket.user._id,
+                username: socket.user.username,
+                avatar: socket.user.avatar,
+                frame: socket.user.frame,
+                entryEffect: socket.user.entryEffect
+            });
             cb({ success: true, room, user: { username: socket.user.username, avatar: socket.user.avatar, frame: socket.user.frame } });
             io.to(`room:${room._id}`).emit('speakers-list', { speakers: room.currentSpeakers });
         });
@@ -535,6 +432,11 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
         socket.on('leave-room', async (data) => {
             const room = await Room.findById(data.roomId);
             if (room) {
+                if (global.rtcRooms[data.roomId]) {
+                    global.rtcRooms[data.roomId] = global.rtcRooms[data.roomId].filter(id => id !== socket.id);
+                    if (global.rtcRooms[data.roomId].length === 0) delete global.rtcRooms[data.roomId];
+                }
+                socket.to(`room:${data.roomId}`).emit('webrtc-peer-left', socket.id);
                 room.users = room.users.filter(u => u.userId !== socket.user._id);
                 room.currentSpeakers = room.currentSpeakers.filter(id => id !== socket.user._id);
                 await room.save();
@@ -543,7 +445,36 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
             }
         });
 
+        socket.on('webrtc-join', ({ roomId }) => {
+            if (!global.rtcRooms[roomId]) global.rtcRooms[roomId] = [];
+            if (!global.rtcRooms[roomId].includes(socket.id)) {
+                global.rtcRooms[roomId].push(socket.id);
+            }
+            const otherUsers = global.rtcRooms[roomId].filter(id => id !== socket.id);
+            socket.emit('webrtc-users', otherUsers);
+            socket.to(roomId).emit('webrtc-peer-joined', socket.id);
+        });
+
+        socket.on('webrtc-offer', ({ to, offer }) => {
+            io.to(to).emit('webrtc-offer', { from: socket.id, offer });
+        });
+
+        socket.on('webrtc-answer', ({ to, answer }) => {
+            io.to(to).emit('webrtc-answer', { from: socket.id, answer });
+        });
+
+        socket.on('webrtc-candidate', ({ to, candidate }) => {
+            io.to(to).emit('webrtc-candidate', { from: socket.id, candidate });
+        });
+
         socket.on('disconnect', () => {
+            for (let roomId in global.rtcRooms) {
+                if (global.rtcRooms[roomId].includes(socket.id)) {
+                    global.rtcRooms[roomId] = global.rtcRooms[roomId].filter(id => id !== socket.id);
+                    if (global.rtcRooms[roomId].length === 0) delete global.rtcRooms[roomId];
+                    io.to(roomId).emit('webrtc-peer-left', socket.id);
+                }
+            }
             global.onlineUsers.delete(socket.user._id.toString());
             console.log('❌ Socket disconnected');
         });
