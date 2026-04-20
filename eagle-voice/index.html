@@ -153,29 +153,35 @@
 
     // دالة التحقق من صلاحية التوكن وعرض الحالة فقط (بدون تنبيهات)
     function checkTokenStatus() {
-        const span = document.getElementById('tokenStatusText');
-        if (!token) {
-            span.innerHTML = '❌ غير موجود';
+    const span = document.getElementById('tokenStatusText');
+    if (!token) {
+        span.innerHTML = '❌ غير موجود';
+        span.className = 'invalid';
+        window.location.href = '/';
+        return false;
+    }
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const exp = payload.exp * 1000;
+        if (Date.now() > exp) {
+            span.innerHTML = '❌ منتهي';
             span.className = 'invalid';
+            localStorage.removeItem('token');
+            alert('انتهت صلاحية الجلسة. سيتم إعادة توجيهك لتسجيل الدخول.');
+            window.location.href = '/';
             return false;
         }
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const exp = payload.exp * 1000;
-            if (Date.now() > exp) {
-                span.innerHTML = '❌ منتهي';
-                span.className = 'invalid';
-                return false;
-            }
-            const days = Math.ceil((exp - Date.now()) / (86400000));
-            span.innerHTML = `✅ صالح (${days} يوم)`;
-            span.className = 'valid';
-            return true;
-        } catch(e) {
-            span.innerHTML = '⚠️ تالف';
-            span.className = 'warning';
-            return false;
-        }
+        const days = Math.ceil((exp - Date.now()) / (86400000));
+        span.innerHTML = `✅ صالح (${days} يوم)`;
+        span.className = 'valid';
+        return true;
+    } catch(e) {
+        span.innerHTML = '⚠️ تالف';
+        span.className = 'warning';
+        localStorage.removeItem('token');
+        window.location.href = '/';
+        return false;
+    }
     }
 
     // تحديث التوكن (تسجيل خروج وإعادة توجيه)
