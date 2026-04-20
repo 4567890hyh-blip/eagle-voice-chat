@@ -5,215 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Eagle Voice Chat - غرف صوتية حية</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: system-ui, 'Segoe UI', 'Cairo', sans-serif;
-        }
-
-        body {
-            background: #0a0a0f;
-            color: white;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        /* البطاقات */
-        .card {
-            background: rgba(26, 26, 46, 0.95);
-            backdrop-filter: blur(4px);
-            border-radius: 28px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(233, 69, 96, 0.3);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        h1 {
-            text-align: center;
-            font-size: 28px;
-            background: linear-gradient(45deg, #e94560, #ff6b6b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 5px;
-        }
-
-        .sub {
-            text-align: center;
-            font-size: 13px;
-            color: #aaa;
-            margin-bottom: 20px;
-        }
-
-        input, button, select {
-            padding: 12px 16px;
-            border-radius: 40px;
-            border: none;
-            font-size: 14px;
-            outline: none;
-        }
-
-        input, select {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        button {
-            background: #e94560;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-
-        button:active { transform: scale(0.97); }
-        .btn-secondary { background: #6c757d; }
-        .btn-danger { background: #dc3545; }
-        .btn-success { background: #28a745; }
-
-        .flex {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        /* قائمة الغرف */
-        .room-item {
-            background: rgba(42, 42, 74, 0.8);
-            border-radius: 60px;
-            padding: 12px 20px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: 0.2s;
-            border: 1px solid #2a2a4a;
-        }
-        .room-item:hover {
-            background: #e94560;
-            transform: translateX(-5px);
-        }
-
-        /* البروفايل */
-        .profile {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-        .profile-pic {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background-size: cover;
-            background-position: center;
-            background-color: #e94560;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-        }
-        .frame-border {
-            border: 3px solid gold;
-            box-shadow: 0 0 0 2px #e94560;
-        }
-
-        /* داخل الغرفة */
-        .speaker-list {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin: 15px 0;
-            padding: 10px;
-            background: #0f0f1a;
-            border-radius: 40px;
-        }
-        .speaker {
-            background: #2a2a4a;
-            border-radius: 40px;
-            padding: 5px 15px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
+        body { background: #0a0a0f; color: white; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .card { background: #1a1a2e; border-radius: 20px; padding: 20px; margin-bottom: 20px; }
+        .flex { display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+        button, input { padding: 10px 15px; border-radius: 30px; border: none; }
+        button { background: #e94560; color: white; cursor: pointer; }
+        .room-item { background: #2a2a4a; padding: 15px; border-radius: 15px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .room-item:hover { background: #e94560; transform: scale(1.01); }
+        .speaker-list { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; padding: 10px; background: #0f0f1a; border-radius: 40px; }
+        .speaker { background: #2a2a4a; border-radius: 40px; padding: 5px 15px; display: inline-flex; align-items: center; gap: 8px; }
         .speaker.active { background: #28a745; box-shadow: 0 0 8px #28a745; }
-
-        .chat-box {
-            height: 320px;
-            overflow-y: auto;
-            background: #0f0f1a;
-            border-radius: 24px;
-            padding: 15px;
-            margin: 15px 0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .message {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: rgba(255,255,255,0.05);
-            padding: 8px 12px;
-            border-radius: 40px;
-            max-width: 85%;
-        }
-        .message-self {
-            background: #e94560;
-            align-self: flex-end;
-        }
-        .message-other {
-            background: #2a2a4a;
-            align-self: flex-start;
-        }
-        .message-system {
-            background: rgba(255,193,7,0.2);
-            align-self: center;
-            width: 90%;
-            text-align: center;
-            font-style: italic;
-        }
-        .msg-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background-size: cover;
-            background-position: center;
-        }
-
-        .mic-count {
-            background: #1a1a2e;
-            padding: 4px 12px;
-            border-radius: 40px;
-            font-size: 12px;
-        }
-
-        @media (max-width: 700px) {
-            .container { padding: 12px; }
-            .profile-pic { width: 45px; height: 45px; }
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: #1a1a2e;
-            color: white;
-            padding: 10px 18px;
-            border-radius: 40px;
-            border-left: 4px solid #e94560;
-            z-index: 999;
-            font-size: 13px;
-        }
+        .chat-box { height: 320px; overflow-y: auto; background: #0f0f1a; border-radius: 24px; padding: 15px; margin: 15px 0; display: flex; flex-direction: column; gap: 8px; }
+        .message { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 40px; max-width: 85%; }
+        .message-self { background: #e94560; align-self: flex-end; }
+        .message-other { background: #2a2a4a; align-self: flex-start; }
+        .message-system { background: rgba(255,193,7,0.2); align-self: center; width: 90%; text-align: center; font-style: italic; }
+        .msg-avatar { width: 32px; height: 32px; border-radius: 50%; background-size: cover; background-position: center; }
+        .profile { display: flex; align-items: center; gap: 15px; }
+        .profile-pic { width: 60px; height: 60px; border-radius: 50%; background-size: cover; background-position: center; background-color: #e94560; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+        .frame-border { border: 3px solid gold; box-shadow: 0 0 0 2px #e94560; }
+        .mic-count { background: #1a1a2e; padding: 4px 12px; border-radius: 40px; font-size: 12px; }
+        @media (max-width: 700px) { .container { padding: 12px; } .profile-pic { width: 45px; height: 45px; } }
+        .toast { position: fixed; bottom: 20px; left: 20px; background: #1a1a2e; color: white; padding: 10px 18px; border-radius: 40px; border-left: 4px solid #e94560; z-index: 999; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -221,7 +36,6 @@
     <h1>🦅 Eagle Voice Chat</h1>
     <div class="sub">غرف صوتية | مايكات حية | إطارات وتأثيرات</div>
 
-    <!-- شاشة تسجيل الدخول -->
     <div id="loginSection" class="card">
         <h3>🔐 تسجيل الدخول</h3>
         <input type="text" id="loginUsername" placeholder="اسم المستخدم">
@@ -230,7 +44,6 @@
         <button onclick="showRegister()" class="btn-secondary">إنشاء حساب</button>
     </div>
 
-    <!-- شاشة التسجيل -->
     <div id="registerSection" class="card" style="display:none">
         <h3>📝 حساب جديد</h3>
         <input type="text" id="regUsername" placeholder="اسم المستخدم">
@@ -240,7 +53,6 @@
         <button onclick="showLogin()" class="btn-secondary">عودة</button>
     </div>
 
-    <!-- التطبيق الرئيسي -->
     <div id="appSection" style="display:none">
         <div class="card">
             <div class="flex" style="justify-content: space-between;">
@@ -287,19 +99,13 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-    // ==================== المتغيرات العامة ====================
     let token = localStorage.getItem('token');
     let currentUser = null;
     let socket = null;
-    let currentRoom = null;        // { id, name, ownerId? }
+    let currentRoom = null;
     let isMicActive = false;
-
-    // WebRTC
     let localStream = null;
-    let peerConnections = {};       // key: socketId, value: RTCPeerConnection
-    const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-    // ==================== دوال مساعدة ====================
     function showToast(msg, isError = false) {
         const toast = document.createElement('div');
         toast.className = 'toast';
@@ -309,45 +115,16 @@
         setTimeout(() => toast.remove(), 3000);
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
-            if (m === '&') return '&amp;';
-            if (m === '<') return '&lt;';
-            if (m === '>') return '&gt;';
-            return m;
-        });
-    }
+    function showRegister() { document.getElementById('loginSection').style.display = 'none'; document.getElementById('registerSection').style.display = 'block'; }
+    function showLogin() { document.getElementById('registerSection').style.display = 'none'; document.getElementById('loginSection').style.display = 'block'; }
 
-    // ==================== واجهة المستخدم ====================
-    function showRegister() {
-        document.getElementById('loginSection').style.display = 'none';
-        document.getElementById('registerSection').style.display = 'block';
-    }
-    function showLogin() {
-        document.getElementById('registerSection').style.display = 'none';
-        document.getElementById('loginSection').style.display = 'block';
-    }
-
-    // تحديث البروفايل
-    function updateProfileUI() {
-        const profileDiv = document.getElementById('profileInfo');
-        const frameClass = currentUser.frame ? 'frame-border' : '';
-        profileDiv.innerHTML = `
-            <div class="profile-pic ${frameClass}" style="background-image: url(${currentUser.avatar}); background-size: cover;">👤</div>
-            <div><strong>${escapeHtml(currentUser.username)}</strong><br>💰 ${currentUser.coins} | 💎 ${currentUser.diamonds}<br>🎭 تأثير: ${currentUser.entryEffect || 'عادي'}</div>
-        `;
-    }
-
-    // ==================== تسجيل الدخول والتسجيل ====================
     async function login() {
         const username = document.getElementById('loginUsername').value.trim();
         const password = document.getElementById('loginPassword').value;
         if (!username || !password) return showToast('يرجى إدخال البيانات', true);
         try {
             const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password, deviceId: 'web_' + Date.now() })
             });
             const data = await res.json();
@@ -360,13 +137,9 @@
                 document.getElementById('appSection').style.display = 'block';
                 updateProfileUI();
                 loadRooms();
-                initMicrophone();   // طلب الإذن للميكروفون
-            } else {
-                showToast(data.error || 'فشل الدخول', true);
-            }
-        } catch (err) {
-            showToast('خطأ في الاتصال بالخادم', true);
-        }
+                initMicrophone();
+            } else showToast(data.error || 'فشل الدخول', true);
+        } catch (err) { showToast('خطأ في الاتصال بالخادم', true); }
     }
 
     async function register() {
@@ -376,20 +149,22 @@
         if (!username || !password) return showToast('املأ الحقول المطلوبة', true);
         try {
             const res = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password, email, deviceId: 'web_' + Date.now() })
             });
             const data = await res.json();
-            if (data.success) {
-                showToast('تم التسجيل بنجاح، يمكنك الدخول');
-                showLogin();
-            } else {
-                showToast(data.error, true);
-            }
-        } catch (err) {
-            showToast('خطأ في الاتصال', true);
-        }
+            if (data.success) { showToast('تم التسجيل بنجاح'); showLogin(); }
+            else showToast(data.error, true);
+        } catch (err) { showToast('خطأ في الاتصال', true); }
+    }
+
+    function updateProfileUI() {
+        const profileDiv = document.getElementById('profileInfo');
+        const frameClass = currentUser.frame ? 'frame-border' : '';
+        profileDiv.innerHTML = `
+            <div class="profile-pic ${frameClass}" style="background-image: url(${currentUser.avatar}); background-size: cover;">👤</div>
+            <div><strong>${currentUser.username}</strong><br>💰 ${currentUser.coins} | 💎 ${currentUser.diamonds}<br>🎭 تأثير: ${currentUser.entryEffect || 'عادي'}</div>
+        `;
     }
 
     async function uploadAvatar(file) {
@@ -398,40 +173,24 @@
         formData.append('avatar', file);
         try {
             const res = await fetch('/api/upload-avatar', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData
+                method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
             });
             const data = await res.json();
-            if (data.success) {
-                currentUser.avatar = data.avatar;
-                updateProfileUI();
-                showToast('تم تحديث الصورة');
-            } else {
-                showToast(data.error, true);
-            }
-        } catch (err) {
-            showToast('فشل رفع الصورة', true);
-        }
+            if (data.success) { currentUser.avatar = data.avatar; updateProfileUI(); showToast('تم تحديث الصورة'); }
+            else showToast(data.error, true);
+        } catch (err) { showToast('فشل رفع الصورة', true); }
     }
 
-    // ==================== Socket.IO + WebRTC ====================
     async function initMicrophone() {
         try {
             localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             console.log('🎤 ميكروفون جاهز');
-        } catch (err) {
-            console.warn('لا يمكن الوصول للميكروفون', err);
-            showToast('لا يمكن الوصول للميكروفون – تأكد من الإذن', true);
-        }
+        } catch (err) { console.warn('لا يمكن الوصول للميكروفون', err); showToast('لا يمكن الوصول للميكروفون', true); }
     }
 
     function connectSocket() {
         socket = io({ auth: { token }, transports: ['websocket', 'polling'] });
         socket.on('connect', () => console.log('Socket متصل'));
-        socket.on('connect_error', (err) => console.error('Socket error:', err.message));
-
-        // أحداث الغرف والشات
         socket.on('rooms-updated', () => loadRooms());
         socket.on('user-joined', (data) => addSystemMessage(`🎉 ${data.username} دخل الغرفة${data.entryEffect ? ` (${data.entryEffect})` : ''}`));
         socket.on('user-left', () => addSystemMessage(`👋 مستخدم غادر الغرفة`));
@@ -440,109 +199,26 @@
         socket.on('speakers-list', () => updateSpeakersList());
         socket.on('mics-locked', (locked) => addSystemMessage(locked ? '🔒 المايكات مقفلة' : '🔓 المايكات مفتوحة'));
         socket.on('new-message', (msg) => addMessage(msg));
-
-        // WebRTC signaling
-        socket.on('webrtc-users', (users) => {
-            users.forEach(peerId => createPeerConnection(peerId));
-        });
-        socket.on('webrtc-peer-joined', (peerId) => {
-            createPeerConnection(peerId);
-        });
-        socket.on('webrtc-peer-left', (peerId) => {
-            if (peerConnections[peerId]) {
-                peerConnections[peerId].close();
-                delete peerConnections[peerId];
-            }
-        });
-        socket.on('webrtc-offer', async ({ from, offer }) => {
-            await handleOffer(from, offer);
-        });
-        socket.on('webrtc-answer', ({ from, answer }) => {
-            if (peerConnections[from]) {
-                peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
-            }
-        });
-        socket.on('webrtc-candidate', ({ from, candidate }) => {
-            if (peerConnections[from]) {
-                peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
-            }
-        });
     }
 
-    // إنشاء اتصال WebRTC
-    async function createPeerConnection(peerId) {
-        if (peerConnections[peerId]) return;
-        const pc = new RTCPeerConnection(configuration);
-        peerConnections[peerId] = pc;
-
-        if (localStream) {
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        }
-
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('webrtc-candidate', { to: peerId, candidate: event.candidate });
-            }
-        };
-        pc.ontrack = (event) => {
-            const audio = new Audio();
-            audio.srcObject = event.streams[0];
-            audio.autoplay = true;
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit('webrtc-offer', { to: peerId, offer });
-    }
-
-    async function handleOffer(from, offer) {
-        if (peerConnections[from]) return;
-        const pc = new RTCPeerConnection(configuration);
-        peerConnections[from] = pc;
-        if (localStream) {
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        }
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('webrtc-candidate', { to: from, candidate: event.candidate });
-            }
-        };
-        pc.ontrack = (event) => {
-            const audio = new Audio();
-            audio.srcObject = event.streams[0];
-            audio.autoplay = true;
-        };
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit('webrtc-answer', { to: from, answer });
-    }
-
-    // ==================== الغرف ====================
     async function loadRooms() {
         try {
             const res = await fetch('/api/rooms');
             const rooms = await res.json();
             const container = document.getElementById('roomsList');
-            if (!rooms.length) {
-                container.innerHTML = '<p>✨ لا توجد غرف، كن أول من ينشئ غرفة!</p>';
-                return;
-            }
+            if (!rooms.length) { container.innerHTML = '<p>✨ لا توجد غرف، كن أول من ينشئ غرفة!</p>'; return; }
             let html = '';
-            rooms.forEach(room => {
-                const usersCount = Array.isArray(room.users) ? room.users.length : 0;
-                const speakers = Array.isArray(room.currentSpeakers) ? room.currentSpeakers.length : 0;
+            for (const room of rooms) {
+                const usersCount = room.users?.length || 0;
+                const speakers = room.currentSpeakers?.length || 0;
                 const maxMics = room.maxMicrophones || 5;
-                html += `<div class="room-item" onclick="joinRoom('${room._id}', '${escapeHtml(room.name)}', '${room.ownerId}')">
-                            <span>🏠 ${escapeHtml(room.name)}</span>
+                html += `<div class="room-item" onclick="joinRoom('${room._id}', '${room.name}', '${room.ownerId}')">
+                            <span>🏠 ${room.name}</span>
                             <span>👥 ${usersCount} | 🎤 ${speakers}/${maxMics}</span>
                         </div>`;
-            });
+            }
             container.innerHTML = html;
-        } catch (err) {
-            console.error(err);
-            document.getElementById('roomsList').innerHTML = '<p class="error">فشل تحميل الغرف</p>';
-        }
+        } catch (err) { console.error(err); document.getElementById('roomsList').innerHTML = '<p class="error">فشل تحميل الغرف</p>'; }
     }
 
     function createRoom() {
@@ -550,13 +226,8 @@
         const maxMics = parseInt(document.getElementById('maxMics').value) || 5;
         if (!name) return showToast('أدخل اسم الغرفة', true);
         socket.emit('create-room', { name, maxMicrophones: maxMics }, (res) => {
-            if (res.success) {
-                showToast('تم إنشاء الغرفة');
-                loadRooms();
-                document.getElementById('newRoomName').value = '';
-            } else {
-                showToast(res.error, true);
-            }
+            if (res.success) { showToast('تم إنشاء الغرفة'); loadRooms(); document.getElementById('newRoomName').value = ''; }
+            else showToast(res.error, true);
         });
     }
 
@@ -569,12 +240,7 @@
                 document.getElementById('roomTitle').innerHTML = `💬 ${roomName}`;
                 document.getElementById('messages').innerHTML = '';
                 updateSpeakersList();
-                // الانضمام إلى WebRTC
-                socket.emit('webrtc-join', { roomId });
-            } else {
-                showToast(res.error, true);
-                currentRoom = null;
-            }
+            } else showToast(res.error, true);
         });
     }
 
@@ -583,7 +249,7 @@
         socket.emit('get-room-state', { roomId: currentRoom.id }, (res) => {
             if (res) {
                 const container = document.getElementById('speakersList');
-                const speakers = Array.isArray(res.currentSpeakers) ? res.currentSpeakers : [];
+                const speakers = res.currentSpeakers || [];
                 if (speakers.length === 0) container.innerHTML = '<div class="speaker">لا يوجد متحدثون</div>';
                 else container.innerHTML = speakers.map(uid => `<div class="speaker active">🎤 ${uid.substring(0,6)}</div>`).join('');
                 document.getElementById('micCount').innerHTML = `🎤 ${speakers.length}/${res.maxMicrophones || 5}`;
@@ -606,9 +272,7 @@
                     isMicActive = true;
                     document.getElementById('micBtn').innerHTML = '🔇 كتم المايك';
                     document.getElementById('micBtn').style.background = '#dc3545';
-                } else {
-                    showToast(res.error, true);
-                }
+                } else showToast(res.error, true);
             });
         }
     }
@@ -631,10 +295,8 @@
         const messagesDiv = document.getElementById('messages');
         const div = document.createElement('div');
         div.className = `message ${msg.username === currentUser.username ? 'message-self' : 'message-other'}`;
-        div.innerHTML = `
-            <div class="msg-avatar" style="background-image: url(${msg.avatar || '/uploads/default-avatar.png'}); background-size: cover;"></div>
-            <div><strong>${escapeHtml(msg.username)}</strong><br>${escapeHtml(msg.message)}</div>
-        `;
+        div.innerHTML = `<div class="msg-avatar" style="background-image: url(${msg.avatar || '/uploads/default-avatar.png'}); background-size: cover;"></div>
+                         <div><strong>${msg.username}</strong><br>${msg.message}</div>`;
         messagesDiv.appendChild(div);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
@@ -651,9 +313,7 @@
     function leaveRoom() {
         if (currentRoom) {
             socket.emit('leave-room', { roomId: currentRoom.id });
-            // إغلاق جميع اتصالات WebRTC
-            Object.values(peerConnections).forEach(pc => pc.close());
-            peerConnections = {};
+            if (localStream) localStream.getTracks().forEach(track => track.stop());
             currentRoom = null;
         }
         document.getElementById('roomView').style.display = 'none';
@@ -662,15 +322,9 @@
         document.getElementById('micBtn').style.background = '#28a745';
     }
 
-    function openShop() {
-        // يمكن فتح نافذة منبثقة أو توجيه إلى صفحة المتجر
-        alert('🚧 متجر الإطارات والتأثيرات قيد التطوير قريباً');
-    }
+    function openShop() { alert('🚧 متجر الإطارات والتأثيرات قيد التطوير قريباً'); }
 
-    // بدء التشغيل إذا كان هناك توكن
-    if (token) {
-        login();
-    }
+    if (token) { login(); }
 </script>
 </body>
-</html>
+    </html>
