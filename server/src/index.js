@@ -50,10 +50,11 @@ const authorize = (roles = []) => (req, res, next) => {
 app.use(express.static(path.join(__dirname, '../../client')));
 app.use('/eagle-voice', express.static(path.join(__dirname, '../../eagle-voice')));
 
+// روابط الصفحات
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../../client/index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, '../../eagle-voice/index.html')));
 
-// ============ النماذج المبسطة (مع الحقول الأساسية) ============
+// ============ النماذج ============
 const UserSchema = new mongoose.Schema({
     username: { type: String, unique: true, required: true },
     email: { type: String, unique: true, sparse: true },
@@ -79,6 +80,7 @@ const UserSchema = new mongoose.Schema({
     devices: [{ deviceId: String, deviceName: String, lastLogin: Date, ip: String }],
     sessions: [{ token: String, deviceId: String, createdAt: Date, expiresAt: Date, ip: String }],
     agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency' },
+    transactions: [{ type: String, amount: Number, coins: Number, diamonds: Number, description: String, date: Date, status: String }],
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -195,7 +197,7 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/user', authenticate, async (req, res) => { res.json({ user: req.user }); });
 
-// --- Admin: المستخدمين ---
+// Admin: المستخدمين
 app.get('/api/admin/users', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { search } = req.query;
     let query = {};
@@ -236,7 +238,7 @@ app.get('/api/admin/stats', authenticate, authorize(['admin', 'super_admin']), a
     res.json({ stats: { totalUsers, onlineUsers: global.onlineUsers?.size || 0, totalCoins } });
 });
 
-// --- Admin: الغرف ---
+// Admin: الغرف
 app.get('/api/admin/rooms', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const rooms = await Room.find().sort({ createdAt: -1 });
     res.json({ rooms });
@@ -263,7 +265,7 @@ app.delete('/api/admin/rooms/:roomId', authenticate, authorize(['super_admin']),
     res.json({ success: true, message: `تم حذف الغرفة ${room.name}` });
 });
 
-// --- Admin: VIP ---
+// Admin: VIP
 app.post('/api/admin/give-vip', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { userId, level, days } = req.body;
     const user = await User.findByIdAndUpdate(userId, { vipLevel: level, vipExpiry: new Date(Date.now() + (days || 30) * 24 * 60 * 60 * 1000) }, { new: true });
@@ -278,7 +280,7 @@ app.get('/api/vip/ranking', async (req, res) => {
     res.json(users);
 });
 
-// --- Admin: الهدايا والإطارات ---
+// Admin: الهدايا والإطارات
 app.get('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Gift.find());
 });
@@ -304,7 +306,7 @@ app.post('/api/gift/send', authenticate, async (req, res) => {
     res.json({ success: true });
 });
 
-// --- Admin: الألعاب ---
+// Admin: الألعاب
 app.get('/api/admin/games', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Game.find());
 });
@@ -313,7 +315,7 @@ app.put('/api/admin/games/:gameId', authenticate, authorize(['admin', 'super_adm
     res.json({ success: true });
 });
 
-// --- Admin: السحوبات ---
+// Admin: السحوبات
 app.get('/api/admin/withdrawals', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Withdrawal.find().populate('userId', 'username'));
 });
@@ -322,7 +324,7 @@ app.post('/api/admin/withdrawals/:id/approve', authenticate, authorize(['admin',
     res.json({ success: true });
 });
 
-// --- Admin: الوكالات ---
+// الوكالات
 app.get('/api/agencies', authenticate, async (req, res) => {
     const agencies = await Agency.find().populate('ownerId', 'username');
     res.json({ agencies });
@@ -336,7 +338,7 @@ app.post('/api/agency/create', authenticate, authorize(['admin', 'super_admin'])
     res.json({ success: true, agency });
 });
 
-// --- Admin: شاشة الظهور ---
+// شاشة الظهور
 app.get('/api/admin/splash', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await SplashScreen.find());
 });
@@ -350,7 +352,7 @@ app.delete('/api/admin/splash/:id', authenticate, authorize(['admin', 'super_adm
     res.json({ success: true });
 });
 
-// --- Admin: الفعاليات ---
+// الفعاليات
 app.get('/api/admin/events', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Event.find());
 });
@@ -364,7 +366,7 @@ app.delete('/api/admin/events/:id', authenticate, authorize(['admin', 'super_adm
     res.json({ success: true });
 });
 
-// --- Admin: البانرات ---
+// البانرات
 app.get('/api/admin/banners', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Banner.find());
 });
@@ -378,18 +380,15 @@ app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_ad
     res.json({ success: true });
 });
 
-// --- Admin: أسعار الشحن والإحصائيات المتقدمة ---
+// أسعار الشحن والإحصائيات المتقدمة
 app.get('/api/packages', async (req, res) => {
     res.json({ '1000_coins': { price: 0.10, coins: 1000 } });
 });
 app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
-    res.json({
-        users: { totalUsers: await User.countDocuments() },
-        vip: { total: await User.countDocuments({ vipLevel: { $gt: 0 } }) }
-    });
+    res.json({ users: { totalUsers: await User.countDocuments() }, vip: { total: await User.countDocuments({ vipLevel: { $gt: 0 } }) } });
 });
 
-// --- دعوة Admin ---
+// دعوة Admin
 app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     const { targetUserId } = req.body;
     const target = await User.findById(targetUserId);
@@ -403,7 +402,13 @@ app.post('/api/invitations/send-admin', authenticate, authorize(['admin', 'super
     res.json({ success: true });
 });
 
-// ============ تشغيل الخادم (بدون Socket.IO لإبقاء الأمور بسيطة) ============
+// الغرف العامة (للواجهة الرئيسية)
+app.get('/api/rooms', async (req, res) => {
+    const rooms = await Room.find({ isActive: true }).sort({ createdAt: -1 });
+    res.json(rooms);
+});
+
+// ============ تشغيل الخادم ============
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) { console.error('❌ MONGODB_URI is not defined'); process.exit(1); }
@@ -418,11 +423,112 @@ mongoose.connect(MONGODB_URI, { dbName: 'eagle-voice-chat' })
         console.log('✅ Super Admin created');
     }
     const server = app.listen(PORT, '0.0.0.0', () => console.log(`🦅 Server running on port ${PORT}`));
-    
-    // Socket.IO بسيط (إذا أردت لاحقاً يمكنك إضافة أحداث الغرف)
+
+    // Socket.IO (أساسي للدردشة والمايكات)
     const socketIo = require('socket.io');
-    const io = socketIo(server, { cors: { origin: "*" } });
+    const io = socketIo(server, { cors: { origin: "*" }, transports: ['websocket', 'polling'] });
     global.io = io;
     global.onlineUsers = new Map();
+
+    io.use((socket, next) => {
+        const token = socket.handshake.auth.token;
+        if (!token) return next(new Error('No token'));
+        const decoded = verifyToken(token);
+        if (!decoded) return next(new Error('Invalid token'));
+        User.findById(decoded.userId).then(user => {
+            if (!user || user.isBanned) return next(new Error('Unauthorized'));
+            socket.user = user;
+            next();
+        }).catch(next);
+    });
+
+    io.on('connection', (socket) => {
+        console.log('✅ Socket connected:', socket.user.username);
+        global.onlineUsers.set(socket.user._id.toString(), socket.id);
+
+        socket.on('create-room', async (data, cb) => {
+            const existing = await Room.findOne({ ownerId: socket.user._id });
+            if (existing) return cb({ error: 'لديك غرفة بالفعل' });
+            const room = new Room({ name: data.name, ownerId: socket.user._id, maxMicrophones: data.maxMicrophones || 5 });
+            await room.save();
+            socket.join(`room:${room._id}`);
+            room.users.push({ userId: socket.user._id, joinedAt: new Date() });
+            await room.save();
+            cb({ success: true, room });
+            io.emit('rooms-updated');
+        });
+
+        socket.on('join-room', async (data, cb) => {
+            const room = await Room.findById(data.roomId);
+            if (!room) return cb({ error: 'الغرفة غير موجودة' });
+            if (!room.isActive) return cb({ error: 'الغرفة محظورة' });
+            if (room.users.some(u => u.userId === socket.user._id)) return cb({ error: 'أنت بالفعل في الغرفة' });
+            socket.join(`room:${room._id}`);
+            room.users.push({ userId: socket.user._id, joinedAt: new Date() });
+            await room.save();
+            io.to(`room:${room._id}`).emit('user-joined', { userId: socket.user._id, username: socket.user.username, avatar: socket.user.avatar, frame: socket.user.frame, entryEffect: socket.user.entryEffect });
+            cb({ success: true, room, user: { username: socket.user.username, avatar: socket.user.avatar, frame: socket.user.frame } });
+            io.to(`room:${room._id}`).emit('speakers-list', { speakers: room.currentSpeakers });
+        });
+
+        socket.on('request-mic', async (data, cb) => {
+            const room = await Room.findById(data.roomId);
+            if (!room) return cb({ error: 'الغرفة غير موجودة' });
+            if (room.isMicsLocked && room.ownerId !== socket.user._id) return cb({ error: 'الميكروفونات مقفلة' });
+            if (room.currentSpeakers.includes(socket.user._id)) return cb({ error: 'أنت بالفعل تتحدث' });
+            if (room.currentSpeakers.length >= room.maxMicrophones) return cb({ error: 'عدد المايكات ممتلئ' });
+            room.currentSpeakers.push(socket.user._id);
+            await room.save();
+            io.to(`room:${room._id}`).emit('speaker-joined', { userId: socket.user._id, username: socket.user.username });
+            cb({ success: true });
+        });
+
+        socket.on('remove-speaker', async (data, cb) => {
+            const room = await Room.findById(data.roomId);
+            if (!room) return cb({ error: 'الغرفة غير موجودة' });
+            const isOwner = room.ownerId === socket.user._id;
+            const isSelf = data.userId === socket.user._id;
+            if (!isOwner && !isSelf) return cb({ error: 'غير مصرح' });
+            room.currentSpeakers = room.currentSpeakers.filter(id => id !== data.userId);
+            await room.save();
+            io.to(`room:${room._id}`).emit('speaker-removed', data.userId);
+            cb({ success: true });
+        });
+
+        socket.on('lock-mics', async (data, cb) => {
+            const room = await Room.findById(data.roomId);
+            if (room.ownerId !== socket.user._id) return cb({ error: 'غير مصرح' });
+            room.isMicsLocked = data.locked;
+            await room.save();
+            io.to(`room:${room._id}`).emit('mics-locked', data.locked);
+            cb({ success: true });
+        });
+
+        socket.on('send-message', (data) => {
+            io.to(`room:${data.roomId}`).emit('new-message', {
+                username: socket.user.username,
+                message: data.message,
+                time: new Date(),
+                avatar: socket.user.avatar,
+                frame: socket.user.frame
+            });
+        });
+
+        socket.on('leave-room', async (data) => {
+            const room = await Room.findById(data.roomId);
+            if (room) {
+                room.users = room.users.filter(u => u.userId !== socket.user._id);
+                room.currentSpeakers = room.currentSpeakers.filter(id => id !== socket.user._id);
+                await room.save();
+                socket.leave(`room:${room._id}`);
+                io.to(`room:${room._id}`).emit('user-left', socket.user._id);
+            }
+        });
+
+        socket.on('disconnect', () => {
+            global.onlineUsers.delete(socket.user._id.toString());
+            console.log('❌ Socket disconnected');
+        });
+    });
 })
 .catch(err => { console.error('❌ MongoDB error:', err.message); process.exit(1); });
