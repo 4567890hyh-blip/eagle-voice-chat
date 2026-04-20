@@ -280,6 +280,24 @@ app.get('/api/vip/ranking', async (req, res) => {
     res.json(users);
 });
 
+// --- إدارة المعرفات المميزة (Unique ID) ---
+app.post('/api/admin/give-unique-id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId, uniqueId } = req.body;
+    if (!userId || !uniqueId) return res.status(400).json({ error: 'بيانات ناقصة' });
+    const existing = await User.findOne({ uniqueId });
+    if (existing) return res.status(400).json({ error: 'هذا المعرف مستخدم بالفعل' });
+    const user = await User.findByIdAndUpdate(userId, { uniqueId }, { new: true });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    res.json({ success: true, uniqueId: user.uniqueId });
+});
+
+app.post('/api/admin/remove-unique-id', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
+    const { userId } = req.body;
+    const user = await User.findByIdAndUpdate(userId, { uniqueId: null }, { new: true });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    res.json({ success: true });
+});
+
 // Admin: الهدايا والإطارات
 app.get('/api/admin/gifts', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json(await Gift.find());
@@ -382,7 +400,7 @@ app.delete('/api/admin/banners/:id', authenticate, authorize(['admin', 'super_ad
 
 // أسعار الشحن والإحصائيات المتقدمة
 app.get('/api/packages', async (req, res) => {
-    res.json({ '1000_coins': { price: 0.10, coins: 1000 } });
+    res.json({ '10000_coins': { price: 1.00, coins: 10000 } });
 });
 app.get('/api/admin/advanced-stats', authenticate, authorize(['admin', 'super_admin']), async (req, res) => {
     res.json({ users: { totalUsers: await User.countDocuments() }, vip: { total: await User.countDocuments({ vipLevel: { $gt: 0 } }) } });
