@@ -2,294 +2,139 @@
 <html dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Eagle Voice Chat</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui; }
-        body { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: white; min-height: 100vh; padding: 20px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
+        body { background: linear-gradient(135deg, #0f0c29, #302b63); color: white; min-height: 100vh; padding: 20px; }
         .container { max-width: 500px; margin: 0 auto; }
         .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 20px; }
-        h1 { text-align: center; margin-bottom: 20px; font-size: 28px; }
-        h1 span { background: linear-gradient(45deg, #e94560, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 10px; background: rgba(255,255,255,0.2); color: white; font-size: 16px; }
-        input::placeholder { color: rgba(255,255,255,0.6); }
-        button { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 10px; background: #e94560; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { transform: scale(1.02); background: #ff6b6b; }
-        .room { background: rgba(255,255,255,0.1); padding: 12px; margin: 8px 0; border-radius: 10px; cursor: pointer; transition: 0.3s; }
-        .room:hover { background: #e94560; transform: translateX(-5px); }
-        .chat-box { height: 350px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 15px; padding: 15px; margin-bottom: 15px; }
-        .message { padding: 8px 12px; margin: 5px 0; border-radius: 10px; max-width: 85%; word-wrap: break-word; }
-        .message-self { background: #e94560; margin-left: auto; text-align: right; }
-        .message-other { background: rgba(255,255,255,0.15); margin-right: auto; }
-        .message-system { background: rgba(255,193,7,0.3); text-align: center; font-size: 12px; margin: 10px 0; }
-        .user-info { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .badge { background: #ffd700; color: #000; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-        .btn-danger { background: #dc3545; }
-        .btn-danger:hover { background: #c82333; }
-        .flex { display: flex; gap: 10px; }
-        .flex button { flex: 1; }
+        h1 { text-align: center; margin-bottom: 20px; }
+        input, button { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 10px; }
+        button { background: #e94560; color: white; cursor: pointer; font-weight: bold; }
+        .room { background: rgba(255,255,255,0.1); padding: 12px; margin: 8px 0; border-radius: 10px; cursor: pointer; }
+        .chat-box { height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+        .message-self { background: #e94560; text-align: right; padding: 8px; margin: 5px; border-radius: 8px; }
+        .message-other { background: rgba(255,255,255,0.1); padding: 8px; margin: 5px; border-radius: 8px; }
+        .message-system { background: rgba(255,193,7,0.3); text-align: center; padding: 5px; margin: 5px; border-radius: 8px; font-size: 12px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🦅 <span>Eagle Voice Chat</span></h1>
+        <h1>🦅 Eagle Voice Chat</h1>
         
-        <!-- Login Section -->
         <div id="loginSection" class="card">
-            <h3 style="margin-bottom: 15px;">🔐 تسجيل الدخول</h3>
+            <h3>تسجيل الدخول</h3>
             <input type="text" id="loginUsername" placeholder="اسم المستخدم">
             <input type="password" id="loginPassword" placeholder="كلمة السر">
             <button onclick="login()">دخول</button>
-            <button onclick="showRegister()" style="background: #6c757d;">إنشاء حساب جديد</button>
+            <button onclick="showRegister()" style="background:#6c757d">إنشاء حساب</button>
         </div>
         
-        <!-- Register Section -->
         <div id="registerSection" class="card" style="display:none">
-            <h3 style="margin-bottom: 15px;">📝 إنشاء حساب</h3>
+            <h3>إنشاء حساب</h3>
             <input type="text" id="regUsername" placeholder="اسم المستخدم">
             <input type="password" id="regPassword" placeholder="كلمة السر">
-            <input type="email" id="regEmail" placeholder="البريد الإلكتروني (اختياري)">
+            <input type="email" id="regEmail" placeholder="البريد الإلكتروني">
             <button onclick="register()">تسجيل</button>
-            <button onclick="showLogin()" style="background: #6c757d;">عودة</button>
+            <button onclick="showLogin()" style="background:#6c757d">عودة</button>
         </div>
         
-        <!-- App Section -->
         <div id="appSection" style="display:none">
+            <div class="card" id="userInfo"></div>
             <div class="card">
-                <div class="user-info" id="userInfo"></div>
-            </div>
-            
-            <div class="card">
-                <h3 style="margin-bottom: 15px;">🏠 الغرف المتاحة</h3>
-                <div id="roomsList" style="max-height: 250px; overflow-y: auto;"></div>
+                <h3>🏠 الغرف</h3>
+                <div id="roomsList"></div>
                 <input type="text" id="newRoomName" placeholder="اسم الغرفة الجديدة">
-                <button onclick="createRoom()">➕ إنشاء غرفة جديدة</button>
+                <button onclick="createRoom()">➕ إنشاء غرفة</button>
             </div>
-            
             <div class="card" id="chatSection" style="display:none">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h3 id="currentRoomTitle">💬 الغرفة</h3>
-                    <button onclick="leaveRoom()" style="width: auto; padding: 8px 15px; background: #dc3545;">🚪 مغادرة</button>
-                </div>
+                <h3 id="currentRoomTitle">💬 الغرفة</h3>
                 <div class="chat-box" id="messages"></div>
-                <div class="flex">
-                    <input type="text" id="messageInput" placeholder="اكتب رسالة...">
-                    <button onclick="sendMessage()" style="width: auto; padding: 12px 20px;">📨 إرسال</button>
-                </div>
+                <input type="text" id="messageInput" placeholder="اكتب رسالة...">
+                <button onclick="sendMessage()">📨 إرسال</button>
+                <button onclick="leaveRoom()" style="background:#dc3545">🚪 مغادرة</button>
             </div>
         </div>
     </div>
     
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        let socket = null;
         let token = localStorage.getItem('token');
         let currentUser = null;
-        let currentRoomId = null;
         
         async function login() {
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
             
-            if (!username || !password) {
-                alert('الرجاء إدخال اسم المستخدم وكلمة السر');
-                return;
-            }
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
             
-            try {
-                const res = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await res.json();
-                
-                if (data.success) {
-                    token = data.token;
-                    localStorage.setItem('token', token);
-                    currentUser = data.user;
-                    connectSocket();
-                    
-                    document.getElementById('loginSection').style.display = 'none';
-                    document.getElementById('appSection').style.display = 'block';
-                    updateUserInfo();
-                    loadRooms();
-                } else {
-                    alert(data.error);
-                }
-            } catch (error) {
-                alert('خطأ في الاتصال بالخادم');
-            }
+            if (data.success) {
+                token = data.token;
+                localStorage.setItem('token', token);
+                currentUser = data.user;
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('appSection').style.display = 'block';
+                document.getElementById('userInfo').innerHTML = `👋 ${currentUser.username} | 💰 ${currentUser.coins}`;
+                loadRooms();
+            } else alert(data.error);
         }
         
         async function register() {
-            const username = document.getElementById('regUsername').value;
-            const password = document.getElementById('regPassword').value;
-            const email = document.getElementById('regEmail').value;
-            
-            if (!username || !password) {
-                alert('الرجاء إدخال اسم المستخدم وكلمة السر');
-                return;
-            }
-            
-            try {
-                const res = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, email })
-                });
-                const result = await res.json();
-                
-                if (result.success) {
-                    alert('تم التسجيل بنجاح! يمكنك تسجيل الدخول الآن');
-                    showLogin();
-                } else {
-                    alert(result.error);
-                }
-            } catch (error) {
-                alert('خطأ في الاتصال بالخادم');
-            }
-        }
-        
-        function updateUserInfo() {
-            if (!currentUser) return;
-            let vipBadge = '';
-            if (currentUser.vipLevel > 0) {
-                vipBadge = `<span class="badge">👑 VIP ${currentUser.vipLevel}</span>`;
-            }
-            document.getElementById('userInfo').innerHTML = `
-                <span>👋 مرحباً ${currentUser.username}</span>
-                <span>💰 ${currentUser.coins.toLocaleString()}</span>
-                <span>💎 ${currentUser.diamonds.toLocaleString()}</span>
-                ${vipBadge}
-            `;
-        }
-        
-        function connectSocket() {
-            socket = io({
-                auth: { token },
-                transports: ['websocket', 'polling']
+            const data = {
+                username: document.getElementById('regUsername').value,
+                password: document.getElementById('regPassword').value,
+                email: document.getElementById('regEmail').value
+            };
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
             });
-            
-            socket.on('connect', () => {
-                console.log('✅ متصل بالخادم');
-            });
-            
-            socket.on('connect_error', (error) => {
-                console.error('Socket error:', error);
-            });
-            
-            socket.on('rooms-updated', () => {
-                loadRooms();
-            });
-            
-            socket.on('user-joined', (username) => {
-                addMessage(`⚡ ${username} دخل الغرفة`, 'system');
-            });
-            
-            socket.on('new-message', (data) => {
-                if (data.username === currentUser?.username) {
-                    addMessage(`أنت: ${data.message}`, 'self');
-                } else {
-                    addMessage(`${data.username}: ${data.message}`, 'other');
-                }
-            });
+            const result = await res.json();
+            if (result.success) { alert('تم التسجيل بنجاح'); showLogin(); }
+            else alert(result.error);
         }
         
         async function loadRooms() {
-            try {
-                const res = await fetch('/api/rooms');
-                const rooms = await res.json();
-                const roomsList = document.getElementById('roomsList');
-                
-                if (rooms.length === 0) {
-                    roomsList.innerHTML = '<p style="text-align:center; color:#aaa;">✨ لا توجد غرف حالياً. كن أول من ينشئ غرفة!</p>';
-                } else {
-                    roomsList.innerHTML = rooms.map(r => `
-                        <div class="room" onclick="joinRoom('${r._id}', '${r.name}')">
-                            🏠 ${escapeHtml(r.name)}
-                        </div>
-                    `).join('');
-                }
-            } catch (error) {
-                console.error('Error loading rooms:', error);
-            }
+            const res = await fetch('/api/rooms');
+            const rooms = await res.json();
+            document.getElementById('roomsList').innerHTML = rooms.map(r => `<div class="room" onclick="joinRoom('${r._id}')">🏠 ${r.name}</div>`).join('');
         }
         
         function createRoom() {
             const name = document.getElementById('newRoomName').value;
-            if (!name) {
-                alert('الرجاء إدخال اسم الغرفة');
-                return;
-            }
-            
-            socket.emit('create-room', { name }, (res) => {
-                if (res.success) {
-                    alert(`✅ تم إنشاء الغرفة "${name}" بنجاح`);
-                    document.getElementById('newRoomName').value = '';
-                    loadRooms();
-                } else {
-                    alert(res.error);
-                }
-            });
+            if (!name) return;
+            fetch('/api/rooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ name })
+            }).then(() => loadRooms());
         }
         
-        function joinRoom(roomId, roomName) {
-            currentRoomId = roomId;
-            socket.emit('join-room', { roomId });
-            
+        function joinRoom(roomId) {
             document.getElementById('chatSection').style.display = 'block';
-            document.getElementById('currentRoomTitle').innerHTML = `💬 ${escapeHtml(roomName)}`;
-            document.getElementById('messages').innerHTML = '';
-            document.getElementById('messageInput').value = '';
-            
-            addMessage(`🎉 انضممت إلى غرفة ${roomName}`, 'system');
+            document.getElementById('currentRoomTitle').innerHTML = '💬 الغرفة';
         }
         
         function sendMessage() {
             const msg = document.getElementById('messageInput').value;
-            if (!msg || !currentRoomId) return;
-            
-            socket.emit('send-message', { roomId: currentRoomId, message: msg });
+            if (!msg) return;
+            // سيتم إضافة Socket.IO لاحقاً
             document.getElementById('messageInput').value = '';
         }
         
         function leaveRoom() {
-            currentRoomId = null;
             document.getElementById('chatSection').style.display = 'none';
         }
         
-        function addMessage(text, type) {
-            const div = document.createElement('div');
-            div.className = `message message-${type}`;
-            div.textContent = text;
-            document.getElementById('messages').appendChild(div);
-            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-        }
+        function showRegister() { document.getElementById('loginSection').style.display = 'none'; document.getElementById('registerSection').style.display = 'block'; }
+        function showLogin() { document.getElementById('registerSection').style.display = 'none'; document.getElementById('loginSection').style.display = 'block'; }
         
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-        
-        function showRegister() {
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('registerSection').style.display = 'block';
-        }
-        
-        function showLogin() {
-            document.getElementById('registerSection').style.display = 'none';
-            document.getElementById('loginSection').style.display = 'block';
-        }
-        
-        if (token) {
-            login();
-        }
+        if (token) { login(); }
     </script>
 </body>
 </html>
