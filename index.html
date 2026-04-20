@@ -1,64 +1,500 @@
-<div style="position: fixed; bottom: 10px; left: 10px; z-index: 9999; background: #1a1a2e; padding: 10px; border-radius: 12px; border: 1px solid #e94560; font-size: 12px;">
-    <button onclick="testUsers()" style="background: #e94560; border: none; padding: 5px 10px; border-radius: 6px; color: white;">📋 اختبار المستخدمين</button>
-    <button onclick="testStats()" style="background: #17a2b8; border: none; padding: 5px 10px; border-radius: 6px; color: white;">📊 اختبار الإحصائيات</button>
-    <button onclick="testToken()" style="background: #ffc107; border: none; padding: 5px 10px; border-radius: 6px; color: black;">🔑 فحص التوكن</button>
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Eagle Voice Chat - منصة الدردشة الصوتية</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, 'Segoe UI', 'Cairo', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* البطاقات */
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            border-radius: 28px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #e94560, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sub {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 14px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 40px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        input {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        input::placeholder {
+            color: #ddd;
+        }
+
+        button {
+            background: #e94560;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .room-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 14px;
+            margin: 10px 0;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .room-item:hover {
+            background: #e94560;
+            transform: translateX(-5px);
+        }
+
+        .room-name {
+            font-weight: bold;
+        }
+
+        .room-badge {
+            font-size: 12px;
+            background: rgba(0,0,0,0.5);
+            padding: 4px 10px;
+            border-radius: 30px;
+        }
+
+        .chat-box {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 24px;
+            height: 320px;
+            overflow-y: auto;
+            padding: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+
+        .message-self {
+            background: #e94560;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-other {
+            background: rgba(255, 255, 255, 0.2);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-system {
+            background: rgba(255, 193, 7, 0.3);
+            text-align: center;
+            font-size: 12px;
+            align-self: center;
+            width: 90%;
+        }
+
+        .flex-btns {
+            display: flex;
+            gap: 10px;
+        }
+
+        .flex-btns button {
+            flex: 1;
+        }
+
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .vip-badge {
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 550px) {
+            .container { max-width: 100%; }
+            .card { padding: 18px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🦅 Eagle Voice Chat</h1>
+    <div class="sub">تواصل بالصوت والنص | غرف حية</div>
+
+    <!-- شاشة تسجيل الدخول -->
+    <div id="loginSection" class="card">
+        <h3 style="margin-bottom: 16px;">🔐 تسجيل الدخول</h3>
+        <input type="text" id="loginUsername" placeholder="اسم المستخدم">
+        <input type="password" id="loginPassword" placeholder="كلمة السر">
+        <button onclick="login()">دخول</button>
+        <button onclick="showRegister()" class="btn-secondary">إنشاء حساب جديد</button>
+    </div>
+
+    <!-- شاشة التسجيل -->
+    <div id="registerSection" class="card" style="display:none;">
+        <h3 style="margin-bottom: 16px;">📝 حساب جديد</h3>
+        <input type="text" id="regUsername" placeholder="اسم المستخدم">
+        <input type="password" id="regPassword" placeholder="كلمة السر">
+        <input type="email" id="regEmail" placeholder="البريد الإلكتروني (اختياري)">
+        <button onclick="register()">تسجيل</button>
+        <button onclick="showLogin()" class="btn-secondary">عودة</button>
+    </div>
+
+    <!-- الواجهة الرئيسية بعد الدخول -->
+    <div id="appSection" style="display:none;">
+        <div class="card">
+            <div class="user-info" id="userInfo"></div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-bottom: 12px;">🏠 الغرف المتاحة</h3>
+            <div id="roomsList" style="max-height: 250px; overflow-y: auto;"></div>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <input type="text" id="newRoomName" placeholder="اسم الغرفة الجديدة" style="flex:1;">
+                <button onclick="createRoom()" style="width: auto; padding: 12px 18px;">➕ إنشاء</button>
+            </div>
+        </div>
+
+        <div class="card" id="chatSection" style="display:none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 id="currentRoomTitle">💬 الغرفة</h3>
+                <button onclick="leaveRoom()" style="width: auto; background: #dc3545; padding: 6px 14px;">🚪 مغادرة</button>
+            </div>
+            <div class="chat-box" id="messages"></div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="messageInput" placeholder="اكتب رسالة...">
+                <button onclick="sendMessage()" style="width: auto; padding: 12px 18px;">📨 إرسال</button>
+            </div>
+        </div>
+    </div>
+    <footer>🦅 Eagle Voice Chat | تواصل بحرية</footer>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script>
-    const API_URL = '';
+    let socket = null;
     let token = localStorage.getItem('token');
+    let currentUser = null;
+    let currentRoomId = null;
 
-    async function testUsers() {
-        if (!token) { alert('❌ لا يوجد توكن! الرجاء تسجيل الدخول'); return; }
-        try {
-            const res = await fetch(`${API_URL}/api/admin/users`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.users) {
-                alert(`✅ نجح! عدد المستخدمين: ${data.users.length}\nأول مستخدم: ${data.users[0]?.username || 'لا يوجد'}`);
-            } else {
-                alert(`⚠️ استجابة غير متوقعة:\n${JSON.stringify(data).substring(0, 200)}`);
-            }
-        } catch (err) {
-            alert(`❌ خطأ في الاتصال: ${err.message}`);
-        }
+    // --- دوال مساعدة ---
+    function showToast(msg, isError = false) {
+        alert(msg);  // بسيطة للهاتف
     }
 
-    async function testStats() {
-        if (!token) { alert('❌ لا يوجد توكن!'); return; }
-        try {
-            const res = await fetch(`${API_URL}/api/admin/stats`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.stats) {
-                alert(`✅ الإحصائيات:\nالمستخدمين: ${data.stats.totalUsers}\nالعملات: ${data.stats.totalCoins}\nالإيرادات: ${data.stats.totalRevenue}$`);
-            } else {
-                alert(`⚠️ استجابة غير متوقعة:\n${JSON.stringify(data).substring(0, 200)}`);
-            }
-        } catch (err) {
-            alert(`❌ خطأ: ${err.message}`);
-        }
+    // --- واجهة المستخدم ---
+    function showRegister() {
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('registerSection').style.display = 'block';
+    }
+    function showLogin() {
+        document.getElementById('registerSection').style.display = 'none';
+        document.getElementById('loginSection').style.display = 'block';
     }
 
-    function testToken() {
-        if (!token) {
-            alert('❌ لا يوجد توكن في localStorage');
+    // --- تسجيل الدخول والتوكن ---
+    async function login() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        if (!username || !password) {
+            alert('يرجى إدخال اسم المستخدم وكلمة السر');
             return;
         }
         try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const exp = payload.exp * 1000;
-            const now = Date.now();
-            if (exp < now) {
-                alert(`❌ التوكن منتهي الصلاحية منذ ${Math.floor((now - exp) / 1000)} ثانية`);
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, deviceId: 'web_' + Date.now() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                token = data.token;
+                localStorage.setItem('token', token);
+                currentUser = data.user;
+                // اتصال Socket.IO
+                connectSocket();
+                // تبديل الواجهة
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('appSection').style.display = 'block';
+                updateUserInfo();
+                loadRooms();
             } else {
-                const days = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
-                alert(`✅ التوكن صالح لمدة ${days} يوم\nاسم المستخدم: ${payload.userId || 'غير معروف'}`);
+                alert(data.error || 'فشل تسجيل الدخول');
             }
-        } catch(e) {
-            alert(`❌ التوكن تالف: ${e.message}`);
+        } catch (err) {
+            alert('خطأ في الاتصال بالخادم');
         }
     }
+
+    async function register() {
+        const username = document.getElementById('regUsername').value.trim();
+        const password = document.getElementById('regPassword').value;
+        const email = document.getElementById('regEmail').value.trim();
+        if (!username || !password) {
+            alert('اسم المستخدم وكلمة السر مطلوبان');
+            return;
+        }
+        try {
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, email, deviceId: 'web_' + Date.now() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('تم التسجيل بنجاح! يمكنك تسجيل الدخول الآن.');
+                showLogin();
+            } else {
+                alert(data.error || 'فشل التسجيل');
+            }
+        } catch (err) {
+            alert('خطأ في الاتصال بالخادم');
+        }
+    }
+
+    function updateUserInfo() {
+        if (!currentUser) return;
+        let vipHtml = '';
+        if (currentUser.vipLevel > 0) {
+            vipHtml = `<span class="vip-badge">👑 VIP ${currentUser.vipLevel}</span>`;
+        }
+        document.getElementById('userInfo').innerHTML = `
+            <span>👋 ${currentUser.username}</span>
+            <span>💰 ${currentUser.coins.toLocaleString()}</span>
+            <span>💎 ${currentUser.diamonds.toLocaleString()}</span>
+            ${vipHtml}
+            <button onclick="logout()" style="background:#dc3545; padding:6px 12px; width:auto;">🚪 خروج</button>
+        `;
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        window.location.reload();
+    }
+
+    // --- Socket.IO ---
+    function connectSocket() {
+        if (socket) socket.disconnect();
+        socket = io({
+            auth: { token },
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', () => console.log('Socket متصل'));
+        socket.on('connect_error', (err) => console.error('Socket error:', err.message));
+
+        socket.on('rooms-updated', () => loadRooms());
+        socket.on('user-joined', (username) => addSystemMessage(`⚡ ${username} دخل الغرفة`));
+        socket.on('user-left', (username) => addSystemMessage(`👋 ${username} غادر الغرفة`));
+        socket.on('new-message', (data) => {
+            if (data.username === currentUser?.username) {
+                addMessage(`أنت: ${data.message}`, 'self');
+            } else {
+                addMessage(`${data.username}: ${data.message}`, 'other');
+            }
+        });
+    }
+
+    // --- الغرف ---
+    async function loadRooms() {
+        try {
+            const res = await fetch('/api/rooms');
+            const rooms = await res.json();
+            const container = document.getElementById('roomsList');
+            if (!rooms.length) {
+                container.innerHTML = '<p style="text-align:center; color:#aaa;">✨ لا توجد غرف حالياً. كن أول من ينشئ غرفة!</p>';
+                return;
+            }
+            let html = '';
+            rooms.forEach(room => {
+                html += `<div class="room-item" onclick="joinRoom('${room._id}', '${escapeHtml(room.name)}')">
+                            <span class="room-name">🏠 ${escapeHtml(room.name)}</span>
+                            <span class="room-badge">${room.users?.length || 0} متصل</span>
+                        </div>`;
+            });
+            container.innerHTML = html;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function createRoom() {
+        const name = document.getElementById('newRoomName').value.trim();
+        if (!name) {
+            alert('الرجاء إدخال اسم الغرفة');
+            return;
+        }
+        socket.emit('create-room', { name }, (response) => {
+            if (response.success) {
+                alert(`✅ تم إنشاء الغرفة "${name}"`);
+                document.getElementById('newRoomName').value = '';
+                loadRooms();
+            } else {
+                alert(response.error || 'لا يمكن إنشاء الغرفة');
+            }
+        });
+    }
+
+    function joinRoom(roomId, roomName) {
+        if (currentRoomId === roomId) return;
+        currentRoomId = roomId;
+        socket.emit('join-room', { roomId });
+        document.getElementById('chatSection').style.display = 'block';
+        document.getElementById('currentRoomTitle').innerHTML = `💬 ${roomName}`;
+        document.getElementById('messages').innerHTML = '';
+        addSystemMessage(`🎉 انضممت إلى غرفة ${roomName}`);
+    }
+
+    function leaveRoom() {
+        if (currentRoomId) {
+            socket.emit('leave-room', { roomId: currentRoomId });
+            currentRoomId = null;
+        }
+        document.getElementById('chatSection').style.display = 'none';
+        document.getElementById('messages').innerHTML = '';
+    }
+
+    function sendMessage() {
+        const msg = document.getElementById('messageInput').value.trim();
+        if (!msg || !currentRoomId) return;
+        socket.emit('send-message', { roomId: currentRoomId, message: msg });
+        document.getElementById('messageInput').value = '';
+    }
+
+    // --- مساعدة للرسائل ---
+    function addMessage(text, type) {
+        const div = document.createElement('div');
+        div.className = `message message-${type}`;
+        div.textContent = text;
+        const box = document.getElementById('messages');
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function addSystemMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'message message-system';
+        div.textContent = text;
+        const box = document.getElementById('messages');
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // --- بدء التشغيل: إذا كان هناك توكن مسبق، جرب تسجيل الدخول تلقائياً ---
+    if (token) {
+        // استدعاء /api/user للتحقق من صلاحية التوكن واستعادة المستخدم
+        fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } })
+            .then(res => res.json())
+            .then(data => {
+                if (data.user) {
+                    currentUser = data.user;
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('appSection').style.display = 'block';
+                    updateUserInfo();
+                    connectSocket();
+                    loadRooms();
+                } else {
+                    localStorage.removeItem('token');
+                    showLogin();
+                }
+            })
+            .catch(() => {
+                localStorage.removeItem('token');
+                showLogin();
+            });
+    } else {
+        showLogin();
+    }
 </script>
+</body>
+</html>
