@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Eagle Voice Chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui; }
+        body { background: linear-gradient(135deg, #0f0c29, #302b63); color: white; min-height: 100vh; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 20px; }
+        h1 { text-align: center; }
+        input, button { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 10px; }
+        button { background: #e94560; color: white; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦅 Eagle Voice Chat</h1>
+        
+        <div class="card">
+            <h3>تسجيل الدخول</h3>
+            <input type="text" id="loginUsername" placeholder="اسم المستخدم">
+            <input type="password" id="loginPassword" placeholder="كلمة السر">
+            <button onclick="login()">دخول</button>
+            <button onclick="showRegister()" style="background:#6c757d">إنشاء حساب</button>
+        </div>
+        
+        <div id="registerSection" class="card" style="display:none">
+            <h3>إنشاء حساب</h3>
+            <input type="text" id="regUsername" placeholder="اسم المستخدم">
+            <input type="password" id="regPassword" placeholder="كلمة السر">
+            <input type="email" id="regEmail" placeholder="البريد الإلكتروني">
+            <button onclick="register()">تسجيل</button>
+            <button onclick="showLogin()" style="background:#6c757d">عودة</button>
+        </div>
+        
+        <div id="appSection" class="card" style="display:none">
+            <div id="userInfo"></div>
+            <h3>🏠 الغرف</h3>
+            <div id="roomsList"></div>
+            <input type="text" id="newRoomName" placeholder="اسم الغرفة الجديدة">
+            <button onclick="createRoom()">➕ إنشاء غرفة</button>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+    
+    <script>
+        let token = localStorage.getItem('token');
+        
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                token = data.token;
+                localStorage.setItem('token', token);
+                document.getElementById('appSection').style.display = 'block';
+                document.getElementById('userInfo').innerHTML = `👋 مرحباً ${data.user.username} | 💰 ${data.user.coins}`;
+                document.querySelector('.card').style.display = 'none';
+                loadRooms();
+            } else {
+                document.getElementById('result').innerHTML = `<p style="color:red">${data.error}</p>`;
+            }
+        }
+        
+        async function register() {
+            const data = {
+                username: document.getElementById('regUsername').value,
+                password: document.getElementById('regPassword').value,
+                email: document.getElementById('regEmail').value
+            };
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert('تم التسجيل بنجاح');
+                showLogin();
+            } else {
+                alert(result.error);
+            }
+        }
+        
+        async function loadRooms() {
+            const res = await fetch('/api/rooms');
+            const rooms = await res.json();
+            document.getElementById('roomsList').innerHTML = rooms.map(r => `<div style="background:rgba(255,255,255,0.1); padding:10px; margin:5px; border-radius:10px;">🏠 ${r.name}</div>`).join('');
+        }
+        
+        function createRoom() {
+            const name = document.getElementById('newRoomName').value;
+            if (!name) return;
+            fetch('/api/rooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ name })
+            }).then(() => loadRooms());
+            document.getElementById('newRoomName').value = '';
+        }
+        
+        function showRegister() {
+            document.querySelector('.card').style.display = 'none';
+            document.getElementById('registerSection').style.display = 'block';
+        }
+        
+        function showLogin() {
+            document.getElementById('registerSection').style.display = 'none';
+            document.querySelector('.card').style.display = 'block';
+        }
+        
+        if (token) { login(); }
+    </script>
+</body>
+</html>
