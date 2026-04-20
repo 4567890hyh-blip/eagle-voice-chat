@@ -1,10 +1,11 @@
 {
   "name": "eagle-voice-chat",
   "version": "1.0.0",
-  "description": "Eagle Voice Chat Application",
+  "description": "منصة دردشة صوتية مع لوحة تحكم متكاملة",
   "main": "server/src/index.js",
   "scripts": {
-    "start": "node server/src/index.js"
+    "start": "node server/src/index.js",
+    "dev": "nodemon server/src/index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -14,5 +15,11 @@
     "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3"
-  }
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "keywords": ["voice", "chat", "rooms", "eagle", "admin"],
+  "author": "Eagle Voice Team",
+  "license": "MIT"
 }
